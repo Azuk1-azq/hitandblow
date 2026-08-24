@@ -5,16 +5,18 @@
 <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0">
 <title>Hit &amp; Blow Online - リアルタイム数当てバトル</title>
 
+<!-- ==================== OGP / Twitter Card（画像なし・テキストのみ）====================
+     ↓ og:url は実際に公開するURLに書き換えてください -->
 <meta property="og:title" content="Hit &amp; Blow Online - リアルタイム数当てバトル">
-<meta property="og:description" content="個人戦・チーム戦・トーナメント戦で友達と対戦！4桁の数字を読み合うリアルタイム対戦型ヒットアンドブロー
-"og:type" content="website">
+<meta property="og:description" content="個人戦・チーム戦・トーナメント戦で友達と対戦！4桁の数字を読み合うリアルタイム対戦型Hit&Blow。">
+<meta property="og:type" content="website">
 <meta property="og:site_name" content="Hit &amp; Blow Online">
 <meta property="og:locale" content="ja_JP">
-<meta property="og:url" content="https://azuk1-azq.github.io/hitandblow">
+<meta property="og:url" content="https://example.com/hit-and-blow-online.html">
+<meta name="twitter:card" content="summary">
 <meta name="twitter:title" content="Hit &amp; Blow Online - リアルタイム数当てバトル">
-<meta name="twitter:description" content="ヒットアンドブロー">
-<meta name="twitter:image" content="https://example.com/ogp-image.png">
-<meta name="description" content="個人戦・チーム戦・トーナメント戦で友達と対戦！">
+<meta name="twitter:description" content="個人戦・チーム戦・トーナメント戦で友達と対戦！4桁の数字を読み合うリアルタイム対戦型Hit&Blow。">
+<meta name="description" content="個人戦・チーム戦・トーナメント戦で友達と対戦！4桁の数字を読み合うリアルタイム対戦型Hit&Blow。Googleスタイルのシンプルなデザイン、Firebaseリアルタイム同期。">
 <!-- ============================================================ -->
 
 <link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 64 64'%3E%3Cdefs%3E%3ClinearGradient id='g' x1='0' y1='0' x2='0' y2='1'%3E%3Cstop offset='0' stop-color='%23eaf6ff'/%3E%3Cstop offset='.5' stop-color='%237dc2f0'/%3E%3Cstop offset='1' stop-color='%232f7cc4'/%3E%3C/linearGradient%3E%3C/defs%3E%3Ccircle cx='32' cy='32' r='30' fill='url(%23g)' stroke='%231a4d7a' stroke-width='2'/%3E%3Ctext x='32' y='42' font-size='28' text-anchor='middle' fill='%230a3660' font-family='Arial' font-weight='bold'%3EHB%3C/text%3E%3C/svg%3E">
@@ -101,6 +103,10 @@
   .players{ display:flex; justify-content:space-between; gap:10px; margin-bottom:14px; }
   .player-chip{ flex:1; padding:8px 10px; border-radius:8px; text-align:center; font-size:13px; font-weight:500; background:var(--g-bg); border:1px solid var(--g-border); }
   .player-chip.active{ background:var(--g-green-bg); border-color:var(--g-green); }
+
+  .presence-badge{ font-size:10px; padding:2px 8px; border-radius:8px; margin-left:6px; font-weight:500; display:inline-block; }
+  .presence-badge.online{ background:var(--g-green-bg); color:#137333; }
+  .presence-badge.offline{ background:var(--g-red-bg); color:#c5221f; }
 
   .digit-boxes{ display:flex; gap:6px; justify-content:center; margin:8px 0; }
   .digit-box{ width:34px; height:40px; border-radius:8px; background:var(--g-surface); border:1px solid var(--g-border); display:flex; align-items:center; justify-content:center; font-size:18px; font-weight:500; color:var(--g-blue); }
@@ -191,6 +197,7 @@ import {
   collection, query, orderBy, serverTimestamp, arrayUnion, arrayRemove, writeBatch
 } from "https://www.gstatic.com/firebasejs/10.13.0/firebase-firestore.js";
 
+/* ==================== Firebase 初期化 ==================== */
 const firebaseConfig = {
   apiKey: "AIzaSyC5zRVd4XFEmNYTYnI_KJQ-YrNbwauqt6g",
   authDomain: "siomuraai.firebaseapp.com",
@@ -204,6 +211,7 @@ const fbApp = initializeApp(firebaseConfig);
 const auth = getAuth(fbApp);
 const db = getFirestore(fbApp);
 
+/* ==================== 共通ユーティリティ ==================== */
 const CODE_CHARS = "ABCDEFGHJKLMNPQRSTUVWXYZ23456789";
 const DIGITS = 4;
 let myUid = null, myName = "プレイヤー";
@@ -230,6 +238,7 @@ function renderFatal(msg) {
   document.getElementById("btnHome").onclick = () => { location.href = location.pathname; };
 }
 
+/* ==================== 認証 ==================== */
 function ensureAuth() {
   return new Promise((resolve) => {
     onAuthStateChanged(auth, (user) => { if (user) { myUid = user.uid; resolve(user); } });
@@ -496,6 +505,8 @@ async function soloSubmitGuess(code, digits) {
     guesserUid: myUid, guesserName: myName, targetUid, guess: digits,
     hit: null, blow: null, createdAt: serverTimestamp(), evaluatedAt: null
   });
+  // ターンを一旦「保留」にして、判定が終わるまで自分も相手も次の予想を送れないようにする
+  await updateDoc(doc(db, "rooms", code), { turn: null }).catch(() => {});
 }
 async function getMySecretCached(code) {
   if (mySecretCache.code === code && mySecretCache.uid === myUid && mySecretCache.val) return mySecretCache.val;
@@ -602,9 +613,8 @@ async function renderSoloGame() {
   if (btn) btn.onclick = async () => {
     const v = input.value, errBox = document.getElementById("guessErr");
     if (!isValidDigits(v)) { errBox.innerHTML = `<div class="error-msg">4桁の「重複しない」数字を入力してください</div>`; return; }
-    btn.disabled = true;
-    try { await soloSubmitGuess(roomCode, v); input.value = ""; } catch (e) { errBox.innerHTML = `<div class="error-msg">${escapeHtml(e.message)}</div>`; }
-    btn.disabled = false;
+    btn.disabled = true; input.disabled = true;
+    try { await soloSubmitGuess(roomCode, v); input.value = ""; } catch (e) { errBox.innerHTML = `<div class="error-msg">${escapeHtml(e.message)}</div>`; btn.disabled = false; input.disabled = false; }
   };
 }
 async function renderSoloResult() {
@@ -730,6 +740,7 @@ async function teamSubmitGuess(code, digits) {
     guesserUid: myUid, guesserName: myName, guesserTeam: mt, targetTeam, guess: digits,
     hit: null, blow: null, createdAt: serverTimestamp(), evaluatedAt: null
   });
+  await updateDoc(doc(db, "rooms", code), { turn: null }).catch(() => {});
 }
 async function getTeamSecretCached(code, teamId) {
   if (myTeamSecretCache.code === code && myTeamSecretCache.teamId === teamId && myTeamSecretCache.val) return myTeamSecretCache.val;
@@ -814,15 +825,16 @@ async function renderTeamSetting() {
   const otherReady = (roomData.readyTeams || []).includes(otherTeamId);
   if (alreadySet) {
     const secret = await getTeamSecretCached(roomCode, mt);
-    app.innerHTML = `<h2>チームの合言葉を設定しました</h2><div class="glass-panel center"><div class="digit-boxes">${digitBoxesHtml(secret)}</div></div>
+    app.innerHTML = `${ownerDeleteButtonHtml()}<h2>チームの合言葉を設定しました</h2><div class="glass-panel center"><div class="digit-boxes">${digitBoxesHtml(secret)}</div></div>
       <div class="spinner"></div><div class="sub center">${otherReady ? "まもなく開始します..." : "相手チームの準備をお待ちください..."}</div>`;
     return;
   }
   if (!isCaptain) {
-    app.innerHTML = `<h2>合言葉を設定中...</h2><div class="glass-panel center"><div class="sub" style="margin-bottom:0;">キャプテンの ${escapeHtml(team.members[0].name)} さんが合言葉を設定しています</div></div><div class="spinner"></div>`;
+    app.innerHTML = `${ownerDeleteButtonHtml()}<h2>合言葉を設定中...</h2><div class="glass-panel center"><div class="sub" style="margin-bottom:0;">キャプテンの ${escapeHtml(team.members[0].name)} さんが合言葉を設定しています</div></div><div class="spinner"></div>`;
     return;
   }
   app.innerHTML = `
+    ${ownerDeleteButtonHtml()}
     <h2>チームの合言葉を設定してください（キャプテン: あなた）</h2>
     <div class="sub">重複のない4桁の数字を決めましょう。チームメイト全員に共有され、一緒に守ります。</div>
     <div class="field"><input class="aero-input" id="inSecret" maxlength="4" inputmode="numeric" placeholder="4桁の数字（重複なし）" style="text-align:center;font-size:24px;letter-spacing:10px;"></div>
@@ -850,6 +862,7 @@ async function renderTeamGame() {
   else if (myTeamTurn) badge = `<div class="turn-badge wait">チームメイトの番です</div>`;
   else badge = `<div class="turn-badge theirs">相手チームの番です</div>`;
   app.innerHTML = `
+    ${ownerDeleteButtonHtml()}
     <div class="team-columns">${teamColumnHtml(roomData.teamA, roomData.turn)}${teamColumnHtml(roomData.teamB, roomData.turn)}</div>
     ${badge}
     <div class="glass-panel"><div class="field" style="margin-bottom:6px;"><label>チームの合言葉</label></div><div class="digit-boxes">${digitBoxesHtml(secret)}</div></div>
@@ -863,16 +876,20 @@ async function renderTeamGame() {
   if (btn) btn.onclick = async () => {
     const v = input.value, errBox = document.getElementById("guessErr");
     if (!isValidDigits(v)) { errBox.innerHTML = `<div class="error-msg">4桁の「重複しない」数字を入力してください</div>`; return; }
-    btn.disabled = true;
-    try { await teamSubmitGuess(roomCode, v); input.value = ""; } catch (e) { errBox.innerHTML = `<div class="error-msg">${escapeHtml(e.message)}</div>`; }
-    btn.disabled = false;
+    btn.disabled = true; input.disabled = true;
+    try { await teamSubmitGuess(roomCode, v); input.value = ""; } catch (e) { errBox.innerHTML = `<div class="error-msg">${escapeHtml(e.message)}</div>`; btn.disabled = false; input.disabled = false; }
   };
 }
 async function renderTeamResult() {
   const mt = myTeamId(); const iWonTeam = roomData.winnerTeam === mt;
   const winnerName = roomData.winnerTeam ? roomData[roomData.winnerTeam].name : "?";
+  const forfeitMsg = roomData.finishReason === "opponent_left"
+    ? (iWonTeam ? "（相手チームが退出したため勝利になりました）" : "（相手チームがあなたのチームの退出と判定しました）")
+    : "";
   app.innerHTML = `
+    ${ownerDeleteButtonHtml()}
     <div class="result-banner ${iWonTeam ? "win" : "lose"}">${iWonTeam ? `${escapeHtml(winnerName)} の勝ちです！（あなたのチーム）` : `${escapeHtml(winnerName)} の勝ちです`}</div>
+    ${forfeitMsg ? `<div class="hint center" style="margin-bottom:12px;">${forfeitMsg}</div>` : ""}
     <div class="glass-panel"><div class="sub" style="margin-bottom:4px;">合言葉の答え合わせ</div><div class="secret-reveal" id="revealArea"><div class="sub">読み込み中...</div></div></div>
     <button class="aero-btn wide" id="btnAgain">モード選択に戻る</button>
     <h3 style="margin-top:18px;">対戦履歴</h3>
@@ -1024,6 +1041,7 @@ async function trnSubmitGuess(code, matchId, matchData, digits) {
   await addDoc(collection(db, "tournaments", code, "matches", matchId, "guesses"), {
     guesserUid: myUid, guesserName: myName, targetUid, guess: digits, hit: null, blow: null, createdAt: serverTimestamp(), evaluatedAt: null
   });
+  await updateDoc(doc(db, "tournaments", code, "matches", matchId), { turn: null }).catch(() => {});
 }
 async function getMatchSecretCached(matchId) {
   if (matchSecretCache.matchId === matchId && matchSecretCache.uid === myUid && matchSecretCache.val) return matchSecretCache.val;
@@ -1097,14 +1115,15 @@ function renderTrnGathering() {
   const shareUrl = location.origin + location.pathname + "?trn=" + tCode;
   const canStart = tData.hostUid === myUid && tData.participants.length === tData.size;
   app.innerHTML = `
+    ${ownerDeleteButtonHtml()}
     <h2>参加者を待っています...</h2>
     <div class="glass-panel center"><div class="sub" style="margin-bottom:0;">このコードを共有してください（${tData.participants.length} / ${tData.size} 人）</div>
       <div class="code-display">${tCode}</div>
       <div class="copy-row"><input class="aero-input" id="shareUrl" readonly value="${escapeHtml(shareUrl)}"><button class="aero-btn" id="btnCopy">コピー</button></div></div>
     <div class="glass-panel"><div class="sub" style="margin-bottom:6px;">参加者一覧</div>
-      ${tData.participants.map(p => `<div class="team-member">${escapeHtml(p.name)}${p.uid === tData.hostUid ? " (ホスト)" : ""}</div>`).join("")}</div>
+      ${tData.participants.map(p => `<div class="team-member">${escapeHtml(p.name)}${p.uid === tData.hostUid ? " (ホスト)" : ""} ${p.uid === myUid ? "" : presenceBadgeHtml(p.uid, "trn")}</div>`).join("")}</div>
     ${tData.hostUid === myUid
-      ? `<button class="aero-btn wide" id="btnStart" ${canStart ? "" : "disabled"}>抽選してトーナメント開始</button><div class="hint">${tData.size}人揃うと開始できます</div>`
+      ? `<button class="aero-btn wide" id="btnStart" ${canStart ? "" : "disabled"}>抽選してトーナメント開始</button><div class="hint">${tData.size}人揃うと開始できます。5秒応答がない参加者は自動的に外れます。</div>`
       : `<div class="spinner"></div><div class="sub center">ホストが開始するのをお待ちください</div>`}`;
   document.getElementById("btnCopy").onclick = () => {
     navigator.clipboard.writeText(shareUrl).then(() => { const b = document.getElementById("btnCopy"); b.textContent = "コピーしました！"; setTimeout(() => b.textContent = "コピー", 1500); });
@@ -1114,19 +1133,20 @@ function renderTrnGathering() {
 }
 async function renderTrnSetting(m) {
   const already = (m.readyUids || []).includes(myUid);
+  const oppUid = m.player1Uid === myUid ? m.player2Uid : m.player1Uid;
   const oppName = m.player1Uid === myUid ? m.player2Name : m.player1Name;
   let bodyHtml;
   if (already) {
     const secret = await getMatchSecretCached(m.id);
     bodyHtml = `<h2>合言葉を設定しました</h2><div class="glass-panel center"><div class="digit-boxes">${digitBoxesHtml(secret)}</div></div>
-      <div class="spinner"></div><div class="sub center">${escapeHtml(oppName || "相手")} の準備をお待ちください...</div>`;
+      <div class="spinner"></div><div class="sub center">${escapeHtml(oppName || "相手")} の準備をお待ちください... ${presenceBadgeHtml(oppUid, "match")}</div>`;
   } else {
     bodyHtml = `<h2>${escapeHtml(oppName || "相手")} 戦：合言葉を設定してください</h2>
       <div class="sub">重複のない4桁の数字を決めましょう。</div>
       <div class="field"><input class="aero-input" id="inSecret" maxlength="4" inputmode="numeric" placeholder="4桁の数字（重複なし）" style="text-align:center;font-size:24px;letter-spacing:10px;"></div>
       <div id="secErr"></div><button class="aero-btn wide" id="btnSetSecret">決定</button>`;
   }
-  app.innerHTML = `<div class="glass-panel" style="margin-bottom:12px;"><div class="sub" style="margin:0;">ラウンド${m.round} の対戦</div></div>` + bodyHtml + `<h3 style="margin-top:18px;">トーナメント表</h3>${bracketHtml()}`;
+  app.innerHTML = `${ownerDeleteButtonHtml()}<div class="glass-panel" style="margin-bottom:12px;"><div class="sub" style="margin:0;">ラウンド${m.round} の対戦</div></div>` + bodyHtml + `<h3 style="margin-top:18px;">トーナメント表</h3>${bracketHtml()}`;
   const input = document.getElementById("inSecret");
   if (input) {
     input.oninput = () => { input.value = input.value.replace(/[^0-9]/g, "").slice(0, 4); };
@@ -1144,8 +1164,9 @@ async function renderTrnGame(m) {
   const secret = await getMatchSecretCached(m.id);
   const historyHtml = matchGuesses.slice().reverse().map(g => guessRowHtml(g, g.guesserUid === myUid ? "あなた" : (g.guesserName || "相手"))).join("");
   app.innerHTML = `
+    ${ownerDeleteButtonHtml()}
     <div class="glass-panel" style="margin-bottom:12px;"><div class="sub" style="margin:0;">ラウンド${m.round} の対戦</div></div>
-    <div class="players"><div class="player-chip">${escapeHtml(m.player1Name)} ${m.player1Uid === myUid ? "(あなた)" : ""}</div><div class="player-chip">${escapeHtml(m.player2Name)} ${m.player2Uid === myUid ? "(あなた)" : ""}</div></div>
+    <div class="players"><div class="player-chip">${escapeHtml(m.player1Name)} ${m.player1Uid === myUid ? "(あなた)" : presenceBadgeHtml(m.player1Uid, "match")}</div><div class="player-chip">${escapeHtml(m.player2Name)} ${m.player2Uid === myUid ? "(あなた)" : presenceBadgeHtml(m.player2Uid, "match")}</div></div>
     <div class="turn-badge ${myTurn ? "mine" : "theirs"}">${myTurn ? "あなたの番です" : `${escapeHtml(oppName || "相手")} の番です`}</div>
     <div class="glass-panel"><div class="field" style="margin-bottom:6px;"><label>あなたの合言葉</label></div><div class="digit-boxes">${digitBoxesHtml(secret)}</div></div>
     <div class="field"><label>予想する数字（4桁・重複なし）</label>
@@ -1159,16 +1180,14 @@ async function renderTrnGame(m) {
   if (btn) btn.onclick = async () => {
     const v = input.value, errBox = document.getElementById("guessErr");
     if (!isValidDigits(v)) { errBox.innerHTML = `<div class="error-msg">4桁の「重複しない」数字を入力してください</div>`; return; }
-    btn.disabled = true;
-    try { await trnSubmitGuess(tCode, m.id, m, v); input.value = ""; } catch (e) { errBox.innerHTML = `<div class="error-msg">${escapeHtml(e.message)}</div>`; }
-    btn.disabled = false;
+    btn.disabled = true; input.disabled = true;
+    try { await trnSubmitGuess(tCode, m.id, m, v); input.value = ""; } catch (e) { errBox.innerHTML = `<div class="error-msg">${escapeHtml(e.message)}</div>`; btn.disabled = false; input.disabled = false; }
   };
 }
 function renderTrnWaitingBracket() {
   const myFinishedLoss = tMatches.some(m => m.status === "finished" && (m.player1Uid === myUid || m.player2Uid === myUid) && m.winner !== myUid);
-  const stillIn = tMatches.some(m => (m.player1Uid === myUid || m.player2Uid === myUid) && m.status !== "finished") ||
-                   (myFinishedLoss ? false : tMatches.some(m => m.status === "finished" && m.winner === myUid && !m.nextMatchId));
   app.innerHTML = `
+    ${ownerDeleteButtonHtml()}
     <h2>${myFinishedLoss ? "あなたは敗退しました" : "次の対戦をお待ちください"}</h2>
     <div class="sub">${myFinishedLoss ? "引き続き他の対戦の行方を見守りましょう。" : "対戦相手が決まり次第、合言葉の設定に進みます。"}</div>
     <div class="spinner"></div>
@@ -1177,19 +1196,17 @@ function renderTrnWaitingBracket() {
 function renderTrnFinished() {
   const iAmChampion = tData.champion && tData.champion.uid === myUid;
   app.innerHTML = `
+    ${ownerDeleteButtonHtml()}
     <div class="result-banner ${iAmChampion ? "win" : "lose"}"> 優勝: ${escapeHtml(tData.champion?.name || "?")} ${iAmChampion ? "（あなた！）" : ""}</div>
     <button class="aero-btn wide" id="btnAgain">モード選択に戻る</button>
     <h3 style="margin-top:18px;">最終トーナメント表</h3>${bracketHtml()}`;
   document.getElementById("btnAgain").onclick = goHome;
 }
 
-/* ==================== 起動 ==================== */
-document.addEventListener("click", (e) => {
-  if (e.target && e.target.id === "btnClose") { if (confirm("最初の画面に戻りますか？")) goHome(); }
-});
-
-(async function boot() {
+async function startApp() {
   await ensureAuth();
+  startHeartbeat();
+  startPresenceTicker();
   const params = new URLSearchParams(location.search);
   const roomFromUrl = params.get("room");
   const trnFromUrl = params.get("trn");
@@ -1205,6 +1222,7 @@ document.addEventListener("click", (e) => {
         if (uidsInRoom.includes(myUid)) {
           mode = data.mode; roomCode = roomFromUrl.toUpperCase(); myName = myName;
           if (mode === "solo") soloSubscribe(roomCode); else teamSubscribe(roomCode);
+          sendHeartbeat();
           return;
         }
       }
@@ -1216,13 +1234,32 @@ document.addEventListener("click", (e) => {
         if ((data.participants || []).some(p => p.uid === myUid)) {
           mode = "tournament"; tCode = trnFromUrl.toUpperCase();
           trnSubscribe(tCode);
+          sendHeartbeat();
           return;
         }
       }
     }
   } catch (e) { /* fall through to mode select */ }
   render();
-})();
+}
+
+/* ==================== 起動 ==================== */
+document.addEventListener("click", async (e) => {
+  if (e.target && e.target.id === "btnClose") { if (confirm("最初の画面に戻りますか？")) goHome(); }
+  if (e.target && e.target.id === "btnDeleteRoom") {
+    if (!confirm("この部屋を削除します。元に戻せません。よろしいですか？")) return;
+    e.target.disabled = true;
+    try {
+      if (mode === "tournament") { await deleteTournamentCascade(tCode); } else { await deleteRoomCascade(roomCode); }
+      goHome();
+    } catch (err) {
+      alert("削除に失敗しました: " + err.message);
+      e.target.disabled = false;
+    }
+  }
+});
+
+startApp();
 </script>
 </body>
 </html>
