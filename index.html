@@ -1,0 +1,1228 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0">
+<title>Hit &amp; Blow Online - リアルタイム数当てバトル</title>
+
+<meta property="og:title" content="Hit &amp; Blow Online - リアルタイム数当てバトル">
+<meta property="og:description" content="個人戦・チーム戦・トーナメント戦で友達と対戦！4桁の数字を読み合うリアルタイム対戦型ヒットアンドブロー>
+<meta property="og:type" content="website">
+<meta property="og:site_name" content="Hit &amp; Blow Online">
+<meta property="og:locale" content="ja_JP">
+<meta property="og:url" content="https://azuk1-azq.github.io/hitandblow">
+<meta name="twitter:title" content="Hit &amp; Blow Online - リアルタイム数当てバトル">
+<meta name="twitter:description" content="ヒットアンドブロー">
+<meta name="twitter:image" content="https://example.com/ogp-image.png">
+<meta name="description" content="個人戦・チーム戦・トーナメント戦で友達と対戦！">
+<!-- ============================================================ -->
+
+<link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 64 64'%3E%3Cdefs%3E%3ClinearGradient id='g' x1='0' y1='0' x2='0' y2='1'%3E%3Cstop offset='0' stop-color='%23eaf6ff'/%3E%3Cstop offset='.5' stop-color='%237dc2f0'/%3E%3Cstop offset='1' stop-color='%232f7cc4'/%3E%3C/linearGradient%3E%3C/defs%3E%3Ccircle cx='32' cy='32' r='30' fill='url(%23g)' stroke='%231a4d7a' stroke-width='2'/%3E%3Ctext x='32' y='42' font-size='28' text-anchor='middle' fill='%230a3660' font-family='Arial' font-weight='bold'%3EHB%3C/text%3E%3C/svg%3E">
+
+<style>
+  :root{
+    --g-blue:#1a73e8; --g-blue-dark:#1557b0; --g-blue-bg:#e8f0fe;
+    --g-red:#ea4335; --g-red-bg:#fce8e6;
+    --g-yellow:#fbbc05; --g-yellow-bg:#fef7e0;
+    --g-green:#34a853; --g-green-bg:#e6f4ea;
+    --g-text:#202124; --g-text-2nd:#5f6368;
+    --g-border:#dadce0; --g-surface:#ffffff; --g-bg:#f1f3f4;
+  }
+  *{ box-sizing:border-box; }
+  html,body{ height:100%; }
+  body{
+    margin:0; min-height:100vh;
+    font-family:Arial,"Segoe UI","Yu Gothic UI","Meiryo UI",Meiryo,sans-serif;
+    background:var(--g-bg); color:var(--g-text); padding:32px 12px 60px;
+  }
+
+  h1,h2,h3{ margin:0 0 8px; font-weight:500; }
+
+  .aero-window{
+    max-width:620px; margin:20px auto; border-radius:16px; overflow:hidden;
+    background:var(--g-surface); border:1px solid var(--g-border);
+    box-shadow:0 1px 2px rgba(60,64,67,0.15), 0 2px 8px rgba(60,64,67,0.10);
+  }
+  .aero-titlebar{
+    display:flex; align-items:center; justify-content:space-between; padding:16px 24px;
+    background:var(--g-surface); border-bottom:1px solid var(--g-border);
+  }
+  .aero-titlebar .ttl{ display:flex; align-items:center; font-weight:500; font-size:18px; letter-spacing:.1px; color:var(--g-text); }
+  .win-controls .close{
+    font-size:13px; color:var(--g-blue); cursor:pointer; padding:8px 14px; border-radius:20px; font-weight:500;
+  }
+  .win-controls .close:hover{ background:var(--g-blue-bg); }
+
+  .aero-body{ padding:24px; }
+  .sub{ color:var(--g-text-2nd); font-size:13px; margin-bottom:16px; line-height:1.6; }
+
+  .field{ margin-bottom:16px; }
+  .field label{ display:block; font-size:12px; font-weight:500; color:var(--g-text-2nd); margin-bottom:6px; }
+
+  .aero-input{
+    width:100%; padding:11px 14px; font-size:15px; border-radius:8px; border:1px solid var(--g-border);
+    background:var(--g-surface); color:var(--g-text); letter-spacing:1px; outline:none;
+    transition:border-color .15s, box-shadow .15s;
+  }
+  .aero-input:focus{ border-color:var(--g-blue); box-shadow:0 0 0 1px var(--g-blue); }
+  select.aero-input{ letter-spacing:normal; }
+
+  .aero-btn{
+    appearance:none; -webkit-appearance:none; border:1px solid transparent; border-radius:20px;
+    padding:10px 22px; font-size:14px; font-weight:500; color:#fff;
+    background:var(--g-blue); cursor:pointer; transition:background .15s, box-shadow .15s;
+    box-shadow:0 1px 2px rgba(60,64,67,0.3);
+  }
+  .aero-btn:hover:not(:disabled){ background:var(--g-blue-dark); box-shadow:0 1px 3px rgba(60,64,67,0.4); }
+  .aero-btn:active:not(:disabled){ background:var(--g-blue-dark); box-shadow:none; }
+  .aero-btn:disabled{ opacity:.5; cursor:not-allowed; box-shadow:none; }
+  .aero-btn.wide{ width:100%; }
+  .aero-btn.small{ padding:6px 14px; font-size:12px; }
+  .aero-btn.secondary{ background:var(--g-surface); border-color:var(--g-border); color:var(--g-blue); box-shadow:none; }
+  .aero-btn.secondary:hover:not(:disabled){ background:var(--g-blue-bg); }
+  .aero-btn.danger{ background:var(--g-red); }
+  .aero-btn.danger:hover:not(:disabled){ background:#c5221f; }
+  .aero-btn.gold{ background:var(--g-yellow); color:#3c2f00; }
+  .aero-btn.gold:hover:not(:disabled){ background:#e0a800; }
+
+  .row{ display:flex; gap:10px; }
+  .row > *{ flex:1; }
+  .row.tight > *{ flex:none; }
+
+  .glass-panel{ background:var(--g-bg); border:1px solid var(--g-border); border-radius:10px; padding:14px 16px; margin-bottom:16px; }
+
+  .code-display{ font-size:32px; font-weight:500; letter-spacing:8px; color:var(--g-blue); text-align:center; padding:10px 0; }
+
+  .turn-badge{ display:inline-block; padding:6px 16px; border-radius:16px; font-weight:500; font-size:13px; margin-bottom:12px; }
+  .turn-badge.mine{ background:var(--g-green-bg); color:#137333; }
+  .turn-badge.theirs{ background:var(--g-yellow-bg); color:#a35a00; }
+  .turn-badge.wait{ background:var(--g-bg); color:var(--g-text-2nd); }
+
+  .players{ display:flex; justify-content:space-between; gap:10px; margin-bottom:14px; }
+  .player-chip{ flex:1; padding:8px 10px; border-radius:8px; text-align:center; font-size:13px; font-weight:500; background:var(--g-bg); border:1px solid var(--g-border); }
+  .player-chip.active{ background:var(--g-green-bg); border-color:var(--g-green); }
+
+  .digit-boxes{ display:flex; gap:6px; justify-content:center; margin:8px 0; }
+  .digit-box{ width:34px; height:40px; border-radius:8px; background:var(--g-surface); border:1px solid var(--g-border); display:flex; align-items:center; justify-content:center; font-size:18px; font-weight:500; color:var(--g-blue); }
+
+  .history{ max-height:260px; overflow-y:auto; margin-top:6px; }
+  .guess-row{ display:flex; align-items:center; gap:10px; padding:10px 4px; border-bottom:1px solid var(--g-border); font-size:13px; }
+  .guess-row .who{ width:88px; font-weight:500; color:var(--g-text-2nd); flex-shrink:0; }
+  .guess-row .g-digits{ font-family:"Roboto Mono","Consolas",monospace; letter-spacing:3px; font-weight:500; font-size:15px; flex:1; color:var(--g-text); }
+  .badges{ display:flex; gap:6px; }
+  .badge{ padding:3px 10px; border-radius:10px; font-size:11px; font-weight:500; }
+  .badge.hit{ background:var(--g-green-bg); color:#137333; }
+  .badge.blow{ background:var(--g-blue-bg); color:var(--g-blue-dark); }
+  .badge.pending{ background:var(--g-bg); color:var(--g-text-2nd); }
+
+  .error-msg{ background:var(--g-red-bg); border-left:4px solid var(--g-red); color:#c5221f; padding:10px 14px; border-radius:4px; font-size:13px; margin-bottom:12px; }
+  .hint{ font-size:12px; color:var(--g-text-2nd); margin-top:6px; }
+
+  .center{ text-align:center; }
+  .spinner{ width:32px;height:32px;border-radius:50%; border:3px solid var(--g-bg); border-top-color:var(--g-blue); animation:spin 0.9s linear infinite; margin:20px auto; }
+  @keyframes spin{ to{ transform:rotate(360deg); } }
+
+  .result-banner{ text-align:center; padding:18px 10px; border-radius:10px; margin-bottom:16px; font-size:20px; font-weight:500; }
+  .result-banner.win{ background:var(--g-green-bg); color:#137333; }
+  .result-banner.lose{ background:var(--g-bg); color:var(--g-text-2nd); }
+
+  .secret-reveal{ display:flex; justify-content:space-around; margin-top:10px; flex-wrap:wrap; gap:10px; }
+  .secret-reveal div{ text-align:center; font-size:13px; }
+
+  .copy-row{ display:flex; gap:8px; }
+  .copy-row input{ flex:1; }
+
+  /* ---- mode select ---- */
+  .mode-grid{ display:flex; flex-direction:column; gap:12px; }
+  .mode-card{
+    display:flex; align-items:center; gap:14px; padding:16px 18px; border-radius:10px; cursor:pointer;
+    background:var(--g-surface); border:1px solid var(--g-border); border-left:4px solid var(--g-blue);
+    transition:box-shadow .15s, border-color .15s;
+  }
+  .mode-card:hover{ box-shadow:0 1px 2px rgba(60,64,67,0.15), 0 2px 6px rgba(60,64,67,0.15); }
+  #cardSolo{ border-left-color:var(--g-blue); }
+  #cardTeam{ border-left-color:var(--g-green); }
+  #cardTrn{ border-left-color:var(--g-yellow); }
+  .mode-card .emoji{ font-size:28px; width:36px; text-align:center; }
+  .mode-card .txt b{ display:block; font-size:15px; color:var(--g-text); font-weight:500; }
+  .mode-card .txt span{ font-size:12px; color:var(--g-text-2nd); }
+  .breadcrumb{ font-size:13px; color:var(--g-blue); margin-bottom:10px; cursor:pointer; font-weight:500; }
+  .breadcrumb:hover{ text-decoration:underline; }
+
+  /* ---- team ---- */
+  .team-columns{ display:flex; gap:12px; margin-bottom:14px; }
+  .team-col{ flex:1; border-radius:10px; padding:10px; background:var(--g-bg); border:1px solid var(--g-border); }
+  .team-col h4{ margin:0 0 8px; font-size:13px; color:var(--g-text-2nd); text-align:center; font-weight:500; }
+  .team-member{ padding:6px 8px; border-radius:6px; margin-bottom:5px; font-size:12px; background:var(--g-surface); border:1px solid var(--g-border); text-align:center; }
+  .team-member.captain::before{ content:"★ "; color:var(--g-yellow); }
+  .team-member.active-turn{ background:var(--g-green-bg); border-color:var(--g-green); font-weight:500; }
+  .team-slot-empty{ padding:6px 8px; border-radius:6px; margin-bottom:5px; font-size:12px; text-align:center; color:var(--g-text-2nd); border:1px dashed var(--g-border); }
+
+  /* ---- bracket ---- */
+  .bracket{ display:flex; gap:16px; overflow-x:auto; padding-bottom:6px; }
+  .bracket-round{ min-width:150px; display:flex; flex-direction:column; justify-content:space-around; gap:14px; }
+  .bracket-round .rlabel{ font-size:11px; text-align:center; color:var(--g-text-2nd); font-weight:500; margin-bottom:2px; }
+  .bracket-match{ border-radius:8px; padding:8px 10px; background:var(--g-surface); border:1px solid var(--g-border); font-size:12px; }
+  .bracket-match .bp{ padding:3px 4px; border-radius:4px; }
+  .bracket-match .bp.win{ background:var(--g-green-bg); color:#137333; font-weight:500; }
+  .bracket-match .bp.tbd{ color:#9aa0a6; }
+
+  a{ color:var(--g-blue); }
+  ::selection{ background:var(--g-blue-bg); }
+</style>
+</head>
+<body>
+
+<div class="aero-window">
+  <div class="aero-titlebar">
+    <div class="ttl">Hit &amp; Blow Online</div>
+    <div class="win-controls"><span class="close" id="btnClose">終了</span></div>
+  </div>
+  <div class="aero-body" id="app">
+    <div class="center"><div class="spinner"></div><div class="sub">サーバーへ接続中...</div></div>
+  </div>
+</div>
+
+<script type="module">
+import { initializeApp } from "https://www.gstatic.com/firebasejs/10.13.0/firebase-app.js";
+import { getAuth, signInAnonymously, onAuthStateChanged } from "https://www.gstatic.com/firebasejs/10.13.0/firebase-auth.js";
+import {
+  getFirestore, doc, getDoc, getDocs, setDoc, updateDoc, deleteDoc, addDoc, onSnapshot,
+  collection, query, orderBy, serverTimestamp, arrayUnion, arrayRemove, writeBatch
+} from "https://www.gstatic.com/firebasejs/10.13.0/firebase-firestore.js";
+
+const firebaseConfig = {
+  apiKey: "AIzaSyC5zRVd4XFEmNYTYnI_KJQ-YrNbwauqt6g",
+  authDomain: "siomuraai.firebaseapp.com",
+  projectId: "siomuraai",
+  storageBucket: "siomuraai.firebasestorage.app",
+  messagingSenderId: "243087403609",
+  appId: "1:243087403609:web:fae22d9a088c6149bb9f48",
+  measurementId: "G-QWGCMKVWWZ"
+};
+const fbApp = initializeApp(firebaseConfig);
+const auth = getAuth(fbApp);
+const db = getFirestore(fbApp);
+
+const CODE_CHARS = "ABCDEFGHJKLMNPQRSTUVWXYZ23456789";
+const DIGITS = 4;
+let myUid = null, myName = "プレイヤー";
+const app = document.getElementById("app");
+
+function genCode(len = 5) { let s = ""; for (let i = 0; i < len; i++) s += CODE_CHARS[Math.floor(Math.random() * CODE_CHARS.length)]; return s; }
+function isValidDigits(str) { if (!/^\d{4}$/.test(str)) return false; return new Set(str.split("")).size === DIGITS; }
+function calcHitBlow(secret, guess) {
+  let hit = 0, blow = 0; const s = secret.split(""), g = guess.split("");
+  for (let i = 0; i < DIGITS; i++) { if (g[i] === s[i]) hit++; else if (s.includes(g[i])) blow++; }
+  return { hit, blow };
+}
+function escapeHtml(str) { return String(str ?? "").replace(/[&<>"']/g, c => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" }[c])); }
+function digitBoxesHtml(str) { return (str || "????").split("").map(d => `<div class="digit-box">${escapeHtml(d)}</div>`).join(""); }
+function guessRowHtml(g, whoLabel) {
+  const badges = (g.hit === null || g.hit === undefined)
+    ? `<span class="badge pending">判定中...</span>`
+    : `<span class="badge hit">HIT ${g.hit}</span><span class="badge blow">BLOW ${g.blow}</span>`;
+  return `<div class="guess-row"><span class="who">${escapeHtml(whoLabel)}</span><span class="g-digits">${escapeHtml(g.guess)}</span><span class="badges">${badges}</span></div>`;
+}
+function shuffle(arr) { const a = arr.slice(); for (let i = a.length - 1; i > 0; i--) { const j = Math.floor(Math.random() * (i + 1)); [a[i], a[j]] = [a[j], a[i]]; } return a; }
+function renderFatal(msg) {
+  app.innerHTML = `<div class="error-msg">${escapeHtml(msg)}</div><button class="aero-btn wide" id="btnHome">最初からやり直す</button>`;
+  document.getElementById("btnHome").onclick = () => { location.href = location.pathname; };
+}
+
+function ensureAuth() {
+  return new Promise((resolve) => {
+    onAuthStateChanged(auth, (user) => { if (user) { myUid = user.uid; resolve(user); } });
+    signInAnonymously(auth).catch((e) => {
+      renderFatal("Firebase匿名認証に失敗しました: " + e.message + "\n(Firebaseコンソールで Authentication > Sign-in method > 匿名 を有効にしてください)");
+    });
+  });
+}
+
+/* ==================== プレゼンス（在席確認）と自動退出判定 ==================== */
+const PRESENCE_INTERVAL_MS = 2000;
+const PRESENCE_TIMEOUT_MS = 5000;
+let heartbeatTimer = null, presenceTickTimer = null, isJudging = false;
+
+function lastSeenMillis(obj, uid) {
+  const p = obj && obj.presence ? obj.presence[uid] : null;
+  if (!p) return 0;
+  if (typeof p.toMillis === "function") return p.toMillis();
+  if (typeof p.seconds === "number") return p.seconds * 1000;
+  return 0;
+}
+function isOnline(obj, uid) {
+  if (!uid) return false;
+  const t = lastSeenMillis(obj, uid);
+  return t > 0 && (Date.now() - t) < PRESENCE_TIMEOUT_MS;
+}
+function presenceBadgeHtml(uid, src) {
+  return `<span class="presence-badge" data-uid="${escapeHtml(uid)}" data-src="${src}"></span>`;
+}
+async function sendHeartbeat() {
+  try {
+    if ((mode === "solo" || mode === "team") && roomCode) {
+      await updateDoc(doc(db, "rooms", roomCode), { [`presence.${myUid}`]: serverTimestamp() });
+    }
+    if (mode === "tournament" && tCode) {
+      await updateDoc(doc(db, "tournaments", tCode), { [`presence.${myUid}`]: serverTimestamp() });
+      if (myActiveMatchId) {
+        await updateDoc(doc(db, "tournaments", tCode, "matches", myActiveMatchId), { [`presence.${myUid}`]: serverTimestamp() });
+      }
+    }
+  } catch (e) { /* 接続が不安定な場合は無視 */ }
+}
+function startHeartbeat() { if (!heartbeatTimer) heartbeatTimer = setInterval(sendHeartbeat, PRESENCE_INTERVAL_MS); }
+function startPresenceTicker() {
+  if (presenceTickTimer) return;
+  presenceTickTimer = setInterval(() => { updatePresenceBadges(); runAutoJudgment(); }, 1000);
+}
+function updatePresenceBadges() {
+  document.querySelectorAll(".presence-badge[data-uid]").forEach((el) => {
+    const uid = el.dataset.uid, src = el.dataset.src;
+    let obj = null;
+    if (src === "room") obj = roomData;
+    else if (src === "trn") obj = tData;
+    else if (src === "match") obj = tMatches.find(m => m.id === myActiveMatchId);
+    const online = isOnline(obj, uid);
+    el.textContent = online ? "オンライン" : "退出";
+    el.className = "presence-badge " + (online ? "online" : "offline");
+  });
+}
+async function runAutoJudgment() {
+  if (isJudging) return;
+  isJudging = true;
+  try {
+    // 個人戦：対戦中に相手が5秒応答なしなら自分の勝ちにする
+    if (mode === "solo" && roomData && roomCode && (roomData.status === "setting" || roomData.status === "playing")) {
+      const oppUid = roomData.player1Uid === myUid ? roomData.player2Uid : roomData.player1Uid;
+      if (oppUid && !isOnline(roomData, oppUid)) {
+        await updateDoc(doc(db, "rooms", roomCode), { status: "finished", winner: myUid, finishReason: "opponent_left" }).catch(() => {});
+      }
+    }
+    // チーム戦：対戦中に相手チーム全員が5秒応答なしなら自チームの勝ちにする
+    if (mode === "team" && roomData && roomCode && (roomData.status === "setting" || roomData.status === "playing")) {
+      const mt = myTeamId();
+      if (mt) {
+        const otherTeam = mt === "teamA" ? "teamB" : "teamA";
+        const otherOnline = (roomData[otherTeam].members || []).some(m => isOnline(roomData, m.uid));
+        if (!otherOnline) {
+          await updateDoc(doc(db, "rooms", roomCode), { status: "finished", winner: myUid, winnerTeam: mt, finishReason: "opponent_left" }).catch(() => {});
+        }
+      }
+    }
+    // チーム戦：メンバー募集中、ホストが5秒応答なしのメンバーを自動的に外す
+    if (mode === "team" && roomData && roomCode && roomData.status === "waiting" && roomData.hostUid === myUid) {
+      for (const teamId of ["teamA", "teamB"]) {
+        const team = roomData[teamId];
+        for (const m of (team.members || [])) {
+          if (m.uid !== myUid && !isOnline(roomData, m.uid)) {
+            await updateDoc(doc(db, "rooms", roomCode), {
+              [`${teamId}.members`]: arrayRemove(m),
+              [`${teamId}.memberUids`]: arrayRemove(m.uid)
+            }).catch(() => {});
+          }
+        }
+      }
+    }
+    // トーナメント：ロビーで5秒応答なしの参加者をホストが自動的に外す
+    if (mode === "tournament" && tData && tCode && tData.status === "lobby" && tData.hostUid === myUid) {
+      for (const p of tData.participants || []) {
+        if (p.uid !== myUid && !isOnline(tData, p.uid)) {
+          await updateDoc(doc(db, "tournaments", tCode), { participants: arrayRemove(p) }).catch(() => {});
+        }
+      }
+    }
+    // トーナメント：対戦中に相手が5秒応答なしなら自分の勝ちにする
+    if (mode === "tournament" && tCode && myActiveMatchId) {
+      const m = tMatches.find(x => x.id === myActiveMatchId);
+      if (m && (m.status === "setting" || m.status === "playing")) {
+        const oppUid = m.player1Uid === myUid ? m.player2Uid : m.player1Uid;
+        if (oppUid && !isOnline(m, oppUid)) {
+          await updateDoc(doc(db, "tournaments", tCode, "matches", myActiveMatchId), { status: "finished", winner: myUid, finishReason: "opponent_left" }).catch(() => {});
+        }
+      }
+    }
+  } finally { isJudging = false; }
+}
+
+/* ==================== 部屋/トーナメントの削除（所有者のみ） ==================== */
+function ownerDeleteButtonHtml() {
+  if (mode === "tournament") {
+    if (!tData || tData.hostUid !== myUid) return "";
+    return `<button class="aero-btn danger small" id="btnDeleteRoom" style="margin-bottom:14px;">トーナメントを削除する</button>`;
+  }
+  if (!roomData) return "";
+  const isOwner = roomData.mode === "solo" ? roomData.player1Uid === myUid : roomData.hostUid === myUid;
+  if (!isOwner) return "";
+  return `<button class="aero-btn danger small" id="btnDeleteRoom" style="margin-bottom:14px;">部屋を削除する</button>`;
+}
+async function deleteRoomCascade(code) {
+  const rSnap = await getDoc(doc(db, "rooms", code));
+  const rd = rSnap.exists() ? rSnap.data() : null;
+  const gSnap = await getDocs(collection(db, "rooms", code, "guesses"));
+  await Promise.all(gSnap.docs.map(d => deleteDoc(d.ref).catch(() => {})));
+  if (rd && rd.mode === "solo") {
+    const uids = [rd.player1Uid, rd.player2Uid].filter(Boolean);
+    await Promise.all(uids.map(u => deleteDoc(doc(db, "rooms", code, "secrets", u)).catch(() => {})));
+  } else if (rd) {
+    await Promise.all(["teamA", "teamB"].map(t => deleteDoc(doc(db, "rooms", code, "teamSecrets", t)).catch(() => {})));
+  }
+  await deleteDoc(doc(db, "rooms", code));
+}
+async function deleteTournamentCascade(code) {
+  const mSnap = await getDocs(collection(db, "tournaments", code, "matches"));
+  for (const mDoc of mSnap.docs) {
+    const md = mDoc.data();
+    const gSnap = await getDocs(collection(db, "tournaments", code, "matches", mDoc.id, "guesses"));
+    await Promise.all(gSnap.docs.map(d => deleteDoc(d.ref).catch(() => {})));
+    const uids = [md.player1Uid, md.player2Uid].filter(Boolean);
+    await Promise.all(uids.map(u => deleteDoc(doc(db, "tournaments", code, "matches", mDoc.id, "secrets", u)).catch(() => {})));
+    await deleteDoc(mDoc.ref).catch(() => {});
+  }
+  await deleteDoc(doc(db, "tournaments", code));
+}
+
+/* ==================== ルーティング状態 ==================== */
+let mode = null; // 'solo' | 'team' | 'tournament'
+
+function resetAll() {
+  if (unsubRoom) { unsubRoom(); unsubRoom = null; }
+  if (unsubGuesses) { unsubGuesses(); unsubGuesses = null; }
+  if (unsubT) { unsubT(); unsubT = null; }
+  if (unsubTMatches) { unsubTMatches(); unsubTMatches = null; }
+  if (unsubMatchGuesses) { unsubMatchGuesses(); unsubMatchGuesses = null; }
+  mode = null; roomCode = null; roomData = null; allGuesses = [];
+  tCode = null; tData = null; tMatches = []; myActiveMatchId = null; matchGuesses = [];
+}
+function goHome() { history.replaceState(null, "", location.pathname); resetAll(); render(); }
+
+function render() {
+  if (mode === null) return renderModeSelect();
+  if (mode === "solo") return renderSoloRoot();
+  if (mode === "team") return renderTeamRoot();
+  if (mode === "tournament") return renderTournamentRoot();
+}
+
+function renderModeSelect() {
+  app.innerHTML = `
+    <h2>モードを選んでください</h2>
+    <div class="sub">4桁の数字（重複なし）を読み合うリアルタイム対戦ゲームです。</div>
+    <div class="mode-grid">
+      <div class="mode-card" id="cardSolo"><div class="txt"><b>個人戦</b><span>1対1でシンプルに対戦</span></div></div>
+      <div class="mode-card" id="cardTeam"><div class="txt"><b>チーム戦</b><span>チームで合言葉を共有して協力対戦</span></div></div>
+      <div class="mode-card" id="cardTrn"><div class="txt"><b>トーナメント戦</b><span>4人/8人の勝ち抜き戦</span></div></div>
+    </div>
+  `;
+  document.getElementById("cardSolo").onclick = () => { mode = "solo"; render(); };
+  document.getElementById("cardTeam").onclick = () => { mode = "team"; render(); };
+  document.getElementById("cardTrn").onclick = () => { mode = "tournament"; render(); };
+}
+
+/* =====================================================================
+   個人戦 (SOLO)
+===================================================================== */
+let roomCode = null, roomData = null, allGuesses = [], unsubRoom = null, unsubGuesses = null, hostLock = false;
+let mySecretCache = { code: null, uid: null, val: null };
+
+async function soloCreateRoom(name) {
+  myName = name || "ホスト";
+  for (let i = 0; i < 8; i++) {
+    const code = genCode();
+    const ref = doc(db, "rooms", code);
+    const snap = await getDoc(ref);
+    if (!snap.exists()) {
+      await setDoc(ref, {
+        mode: "solo", player1Uid: myUid, player1Name: myName, player2Uid: null, player2Name: null,
+        status: "waiting", readyUids: [], turn: null, winner: null, finishReason: null, presence: {}, createdAt: serverTimestamp()
+      });
+      roomCode = code; history.replaceState(null, "", "?room=" + code); soloSubscribe(code); sendHeartbeat(); return;
+    }
+  }
+  throw new Error("ルームコードの生成に失敗しました。もう一度お試しください。");
+}
+async function soloJoinRoom(code, name) {
+  code = code.trim().toUpperCase(); if (!code) throw new Error("ルームコードを入力してください");
+  myName = name || "ゲスト";
+  const ref = doc(db, "rooms", code); const snap = await getDoc(ref);
+  if (!snap.exists()) throw new Error("そのルームコードは見つかりません");
+  const data = snap.data();
+  if (data.mode !== "solo") throw new Error("このコードは個人戦のルームではありません");
+  if (data.player1Uid === myUid || data.player2Uid === myUid) { roomCode = code; history.replaceState(null, "", "?room=" + code); soloSubscribe(code); sendHeartbeat(); return; }
+  if (data.player2Uid) throw new Error("このルームは満室です");
+  await updateDoc(ref, { player2Uid: myUid, player2Name: myName, status: "setting" });
+  roomCode = code; history.replaceState(null, "", "?room=" + code); soloSubscribe(code); sendHeartbeat();
+}
+function soloSubscribe(code) {
+  if (unsubRoom) unsubRoom(); if (unsubGuesses) unsubGuesses();
+  const roomRef = doc(db, "rooms", code);
+  unsubRoom = onSnapshot(roomRef, (snap) => {
+    if (!snap.exists()) { renderFatal("ルームが削除されたか見つかりません。"); return; }
+    roomData = snap.data();
+    if (roomData.player1Uid === myUid && roomData.status === "setting" && (roomData.readyUids || []).length >= 2 && !roomData.turn && !hostLock) {
+      hostLock = true;
+      updateDoc(roomRef, { status: "playing", turn: roomData.player1Uid }).finally(() => { hostLock = false; });
+    }
+    render();
+  }, (err) => renderFatal("監視エラー: " + err.message));
+
+  const gq = query(collection(db, "rooms", code, "guesses"), orderBy("createdAt", "asc"));
+  unsubGuesses = onSnapshot(gq, (snap) => {
+    snap.docChanges().forEach(async (change) => {
+      if (change.type !== "added") return;
+      const g = change.doc.data(), gid = change.doc.id;
+      if (g.targetUid === myUid && g.hit === null) {
+        const secretSnap = await getDoc(doc(db, "rooms", code, "secrets", myUid));
+        const secret = secretSnap.exists() ? secretSnap.data().secret : null;
+        if (!secret) return;
+        const { hit, blow } = calcHitBlow(secret, g.guess);
+        await updateDoc(doc(db, "rooms", code, "guesses", gid), { hit, blow, evaluatedAt: serverTimestamp() });
+        if (hit === DIGITS) await updateDoc(roomRef, { status: "finished", winner: g.guesserUid });
+        else await updateDoc(roomRef, { turn: myUid });
+      }
+    });
+    allGuesses = snap.docs.map(d => ({ id: d.id, ...d.data() }));
+    render();
+  });
+}
+async function soloSetSecret(code, digits) {
+  await setDoc(doc(db, "rooms", code, "secrets", myUid), { secret: digits, createdAt: serverTimestamp() });
+  mySecretCache = { code, uid: myUid, val: digits };
+  await updateDoc(doc(db, "rooms", code), { readyUids: arrayUnion(myUid) });
+}
+async function soloSubmitGuess(code, digits) {
+  const targetUid = (roomData.player1Uid === myUid) ? roomData.player2Uid : roomData.player1Uid;
+  await addDoc(collection(db, "rooms", code, "guesses"), {
+    guesserUid: myUid, guesserName: myName, targetUid, guess: digits,
+    hit: null, blow: null, createdAt: serverTimestamp(), evaluatedAt: null
+  });
+}
+async function getMySecretCached(code) {
+  if (mySecretCache.code === code && mySecretCache.uid === myUid && mySecretCache.val) return mySecretCache.val;
+  const s = await getDoc(doc(db, "rooms", code, "secrets", myUid));
+  const val = s.exists() ? s.data().secret : null;
+  mySecretCache = { code, uid: myUid, val };
+  return val;
+}
+
+function renderSoloRoot() {
+  if (!roomData) { renderSoloLobby(); return; }
+  switch (roomData.status) {
+    case "waiting": renderSoloWaiting(); break;
+    case "setting": renderSoloSetting(); break;
+    case "playing": renderSoloGame(); break;
+    case "finished": renderSoloResult(); break;
+    default: renderSoloLobby();
+  }
+}
+function renderSoloLobby(errMsg) {
+  const params = new URLSearchParams(location.search); const prefill = params.get("room") || "";
+  app.innerHTML = `
+    <div class="breadcrumb" id="bcBack">&larr; モード選択に戻る</div>
+    <h2>個人戦</h2>
+    <div class="sub">1対1で相手の合言葉（4桁の数字）を当て合います。</div>
+    ${errMsg ? `<div class="error-msg">${escapeHtml(errMsg)}</div>` : ""}
+    <div class="field"><label>あなたの名前</label><input class="aero-input" id="inName" maxlength="12" placeholder="プレイヤー名"></div>
+    <div class="glass-panel">
+      <div class="field" style="margin-bottom:10px;"><label>ルームコード（新規作成する場合は空欄）</label>
+        <input class="aero-input" id="inCode" maxlength="5" placeholder="例: AB3XZ" value="${escapeHtml(prefill)}" style="text-transform:uppercase;"></div>
+      <div class="row"><button class="aero-btn wide" id="btnJoin">参加する</button><button class="aero-btn secondary wide" id="btnCreate">新しいルームを作る</button></div>
+    </div>`;
+  document.getElementById("bcBack").onclick = goHome;
+  document.getElementById("btnCreate").onclick = async () => {
+    const name = document.getElementById("inName").value.trim() || "ホスト";
+    try { await soloCreateRoom(name); } catch (e) { renderSoloLobby(e.message); }
+  };
+  document.getElementById("btnJoin").onclick = async () => {
+    const name = document.getElementById("inName").value.trim() || "ゲスト";
+    const code = document.getElementById("inCode").value.trim();
+    if (!code) { renderSoloLobby("参加するにはルームコードを入力してください"); return; }
+    try { await soloJoinRoom(code, name); } catch (e) { renderSoloLobby(e.message); }
+  };
+}
+function renderSoloWaiting() {
+  const shareUrl = location.origin + location.pathname + "?room=" + roomCode;
+  app.innerHTML = `
+    ${ownerDeleteButtonHtml()}
+    <h2>相手を待っています...</h2>
+    <div class="glass-panel center"><div class="sub" style="margin-bottom:0;">このルームコードを相手に伝えてください</div>
+      <div class="code-display">${roomCode}</div>
+      <div class="copy-row"><input class="aero-input" id="shareUrl" readonly value="${escapeHtml(shareUrl)}"><button class="aero-btn" id="btnCopy">コピー</button></div>
+    </div><div class="spinner"></div><div class="sub center">2人目のプレイヤーの参加をお待ちください</div>`;
+  document.getElementById("btnCopy").onclick = () => {
+    navigator.clipboard.writeText(shareUrl).then(() => { const b = document.getElementById("btnCopy"); b.textContent = "コピーしました！"; setTimeout(() => b.textContent = "コピー", 1500); });
+  };
+}
+async function renderSoloSetting() {
+  const already = (roomData.readyUids || []).includes(myUid);
+  const oppUid = (roomData.player1Uid === myUid) ? roomData.player2Uid : roomData.player1Uid;
+  const oppName = (roomData.player1Uid === myUid) ? roomData.player2Name : roomData.player1Name;
+  if (already) {
+    const secret = await getMySecretCached(roomCode);
+    app.innerHTML = `${ownerDeleteButtonHtml()}<h2>合言葉を設定しました</h2><div class="glass-panel center"><div class="digit-boxes">${digitBoxesHtml(secret)}</div></div>
+      <div class="spinner"></div><div class="sub center">${escapeHtml(oppName || "相手")} の準備をお待ちください... ${presenceBadgeHtml(oppUid, "room")}</div>`;
+    return;
+  }
+  app.innerHTML = `
+    ${ownerDeleteButtonHtml()}
+    <h2>合言葉を設定してください</h2>
+    <div class="sub">重複のない4桁の数字を決めましょう（例: 1234）。</div>
+    <div class="field"><input class="aero-input" id="inSecret" maxlength="4" inputmode="numeric" placeholder="4桁の数字（重複なし）" style="text-align:center;font-size:24px;letter-spacing:10px;"></div>
+    <div id="secErr"></div><button class="aero-btn wide" id="btnSetSecret">決定</button>`;
+  const input = document.getElementById("inSecret");
+  input.oninput = () => { input.value = input.value.replace(/[^0-9]/g, "").slice(0, 4); };
+  document.getElementById("btnSetSecret").onclick = async () => {
+    const v = input.value, errBox = document.getElementById("secErr");
+    if (!isValidDigits(v)) { errBox.innerHTML = `<div class="error-msg">4桁の「重複しない」数字を入力してください</div>`; return; }
+    document.getElementById("btnSetSecret").disabled = true;
+    try { await soloSetSecret(roomCode, v); } catch (e) { errBox.innerHTML = `<div class="error-msg">${escapeHtml(e.message)}</div>`; document.getElementById("btnSetSecret").disabled = false; }
+  };
+}
+async function renderSoloGame() {
+  const myTurn = roomData.turn === myUid;
+  const oppUid = (roomData.player1Uid === myUid) ? roomData.player2Uid : roomData.player1Uid;
+  const oppName = (roomData.player1Uid === myUid) ? roomData.player2Name : roomData.player1Name;
+  const secret = await getMySecretCached(roomCode);
+  const historyHtml = allGuesses.slice().reverse().map(g => guessRowHtml(g, g.guesserUid === myUid ? "あなた" : (g.guesserName || "相手"))).join("");
+  app.innerHTML = `
+    ${ownerDeleteButtonHtml()}
+    <div class="players">
+      <div class="player-chip">${escapeHtml(roomData.player1Name)} ${roomData.player1Uid === myUid ? "(あなた)" : presenceBadgeHtml(roomData.player1Uid, "room")}</div>
+      <div class="player-chip">${escapeHtml(roomData.player2Name)} ${roomData.player2Uid === myUid ? "(あなた)" : presenceBadgeHtml(roomData.player2Uid, "room")}</div>
+    </div>
+    <div class="turn-badge ${myTurn ? "mine" : "theirs"}">${myTurn ? "あなたの番です" : `${escapeHtml(oppName || "相手")} の番です`}</div>
+    <div class="glass-panel"><div class="field" style="margin-bottom:6px;"><label>あなたの合言葉</label></div><div class="digit-boxes">${digitBoxesHtml(secret)}</div></div>
+    <div class="field"><label>予想する数字（4桁・重複なし）</label>
+      <div class="row"><input class="aero-input" id="inGuess" maxlength="4" inputmode="numeric" placeholder="1234" style="text-align:center;font-size:20px;letter-spacing:8px;" ${myTurn ? "" : "disabled"}>
+      <button class="aero-btn" id="btnGuess" ${myTurn ? "" : "disabled"}>予想する</button></div><div id="guessErr"></div></div>
+    <h3 style="margin-top:18px;">対戦履歴</h3><div class="history">${historyHtml || `<div class="sub">まだ予想はありません</div>`}</div>`;
+  const input = document.getElementById("inGuess");
+  input.oninput = () => { input.value = input.value.replace(/[^0-9]/g, "").slice(0, 4); };
+  const btn = document.getElementById("btnGuess");
+  if (btn) btn.onclick = async () => {
+    const v = input.value, errBox = document.getElementById("guessErr");
+    if (!isValidDigits(v)) { errBox.innerHTML = `<div class="error-msg">4桁の「重複しない」数字を入力してください</div>`; return; }
+    btn.disabled = true;
+    try { await soloSubmitGuess(roomCode, v); input.value = ""; } catch (e) { errBox.innerHTML = `<div class="error-msg">${escapeHtml(e.message)}</div>`; }
+    btn.disabled = false;
+  };
+}
+async function renderSoloResult() {
+  const iWon = roomData.winner === myUid;
+  const oppName = (roomData.player1Uid === myUid) ? roomData.player2Name : roomData.player1Name;
+  const forfeitMsg = roomData.finishReason === "opponent_left"
+    ? (iWon ? "（相手が退出したため勝利になりました）" : "（あなたが退出したと判定されました）")
+    : "";
+  app.innerHTML = `
+    ${ownerDeleteButtonHtml()}
+    <div class="result-banner ${iWon ? "win" : "lose"}">${iWon ? "あなたの勝ちです！" : `${escapeHtml(oppName || "相手")} の勝ちです`}</div>
+    ${forfeitMsg ? `<div class="hint center" style="margin-bottom:12px;">${forfeitMsg}</div>` : ""}
+    <div class="glass-panel"><div class="sub" style="margin-bottom:4px;">合言葉の答え合わせ</div><div class="secret-reveal" id="revealArea"><div class="sub">読み込み中...</div></div></div>
+    <button class="aero-btn wide" id="btnAgain">モード選択に戻る</button>
+    <h3 style="margin-top:18px;">対戦履歴</h3>
+    <div class="history">${allGuesses.slice().reverse().map(g => guessRowHtml(g, g.guesserUid === myUid ? "あなた" : (g.guesserName || "相手"))).join("")}</div>`;
+  document.getElementById("btnAgain").onclick = goHome;
+  try {
+    const [s1, s2] = await Promise.all([getDoc(doc(db, "rooms", roomCode, "secrets", roomData.player1Uid)), getDoc(doc(db, "rooms", roomCode, "secrets", roomData.player2Uid))]);
+    const area = document.getElementById("revealArea");
+    if (area) area.innerHTML = `
+      <div><b>${escapeHtml(roomData.player1Name)}</b><div class="digit-boxes">${digitBoxesHtml(s1.data()?.secret)}</div></div>
+      <div><b>${escapeHtml(roomData.player2Name)}</b><div class="digit-boxes">${digitBoxesHtml(s2.data()?.secret)}</div></div>`;
+  } catch (e) { const area = document.getElementById("revealArea"); if (area) area.innerHTML = `<div class="sub">合言葉の取得に失敗しました</div>`; }
+}
+
+/* =====================================================================
+   チーム戦 (TEAM)  ※ roomCode / roomData / allGuesses / unsubRoom / unsubGuesses を共用
+===================================================================== */
+let myTeamSecretCache = { code: null, teamId: null, val: null };
+
+function myTeamId() {
+  if (!roomData || roomData.mode !== "team") return null;
+  if ((roomData.teamA?.memberUids || []).includes(myUid)) return "teamA";
+  if ((roomData.teamB?.memberUids || []).includes(myUid)) return "teamB";
+  return null;
+}
+async function teamCreateRoom(name, teamSize) {
+  myName = name || "ホスト";
+  for (let i = 0; i < 8; i++) {
+    const code = genCode();
+    const ref = doc(db, "rooms", code);
+    const snap = await getDoc(ref);
+    if (!snap.exists()) {
+      await setDoc(ref, {
+        mode: "team", teamSize, hostUid: myUid, status: "waiting",
+        teamA: { name: "チームA", members: [{ uid: myUid, name: myName }], memberUids: [myUid], ptr: 0 },
+        teamB: { name: "チームB", members: [], memberUids: [], ptr: 0 },
+        readyTeams: [], turn: null, turnTeam: null, winner: null, winnerTeam: null, finishReason: null, presence: {}, createdAt: serverTimestamp()
+      });
+      roomCode = code; history.replaceState(null, "", "?room=" + code); teamSubscribe(code); sendHeartbeat(); return;
+    }
+  }
+  throw new Error("ルームコードの生成に失敗しました。");
+}
+async function teamJoinRoom(code, name, teamChoice) {
+  code = code.trim().toUpperCase(); if (!code) throw new Error("ルームコードを入力してください");
+  myName = name || "ゲスト";
+  const ref = doc(db, "rooms", code); const snap = await getDoc(ref);
+  if (!snap.exists()) throw new Error("そのルームコードは見つかりません");
+  const data = snap.data();
+  if (data.mode !== "team") throw new Error("このコードはチーム戦のルームではありません");
+  if ((data.teamA.memberUids || []).includes(myUid) || (data.teamB.memberUids || []).includes(myUid)) {
+    roomCode = code; history.replaceState(null, "", "?room=" + code); teamSubscribe(code); sendHeartbeat(); return;
+  }
+  if (data.status !== "waiting") throw new Error("このルームは既に開始されています");
+  const team = data[teamChoice];
+  if ((team.members || []).length >= data.teamSize) throw new Error("そのチームは満員です");
+  await updateDoc(ref, {
+    [`${teamChoice}.members`]: arrayUnion({ uid: myUid, name: myName }),
+    [`${teamChoice}.memberUids`]: arrayUnion(myUid)
+  });
+  roomCode = code; history.replaceState(null, "", "?room=" + code); teamSubscribe(code); sendHeartbeat();
+}
+function teamSubscribe(code) {
+  if (unsubRoom) unsubRoom(); if (unsubGuesses) unsubGuesses();
+  const roomRef = doc(db, "rooms", code);
+  unsubRoom = onSnapshot(roomRef, (snap) => {
+    if (!snap.exists()) { renderFatal("ルームが削除されたか見つかりません。"); return; }
+    roomData = snap.data();
+    if (roomData.hostUid === myUid && roomData.status === "setting" && (roomData.readyTeams || []).length >= 2 && !roomData.turn && !hostLock) {
+      hostLock = true;
+      updateDoc(roomRef, { status: "playing", turnTeam: "teamA", turn: roomData.teamA.members[0].uid }).finally(() => { hostLock = false; });
+    }
+    render();
+  }, (err) => renderFatal("監視エラー: " + err.message));
+
+  const gq = query(collection(db, "rooms", code, "guesses"), orderBy("createdAt", "asc"));
+  unsubGuesses = onSnapshot(gq, (snap) => {
+    snap.docChanges().forEach(async (change) => {
+      if (change.type !== "added") return;
+      const g = change.doc.data(), gid = change.doc.id;
+      const mt = myTeamId();
+      if (mt && g.targetTeam === mt && g.hit === null) {
+        const secretSnap = await getDoc(doc(db, "rooms", code, "teamSecrets", mt));
+        const secret = secretSnap.exists() ? secretSnap.data().secret : null;
+        if (!secret) return;
+        const { hit, blow } = calcHitBlow(secret, g.guess);
+        await updateDoc(doc(db, "rooms", code, "guesses", gid), { hit, blow, evaluatedAt: serverTimestamp() });
+        if (hit === DIGITS) {
+          await updateDoc(roomRef, { status: "finished", winner: g.guesserUid, winnerTeam: g.guesserTeam });
+        } else {
+          const attackerTeam = g.guesserTeam;
+          const newPtr = (roomData[attackerTeam].ptr || 0) + 1;
+          const defenderPtr = roomData[mt].ptr || 0;
+          const nextUid = roomData[mt].members[defenderPtr % roomData[mt].members.length].uid;
+          await updateDoc(roomRef, { [`${attackerTeam}.ptr`]: newPtr, turnTeam: mt, turn: nextUid });
+        }
+      }
+    });
+    allGuesses = snap.docs.map(d => ({ id: d.id, ...d.data() }));
+    render();
+  });
+}
+async function teamSetSecret(code, teamId, digits) {
+  await setDoc(doc(db, "rooms", code, "teamSecrets", teamId), { secret: digits, setByUid: myUid, createdAt: serverTimestamp() });
+  myTeamSecretCache = { code, teamId, val: digits };
+  await updateDoc(doc(db, "rooms", code), { readyTeams: arrayUnion(teamId) });
+}
+async function teamSubmitGuess(code, digits) {
+  const mt = myTeamId(); const targetTeam = mt === "teamA" ? "teamB" : "teamA";
+  await addDoc(collection(db, "rooms", code, "guesses"), {
+    guesserUid: myUid, guesserName: myName, guesserTeam: mt, targetTeam, guess: digits,
+    hit: null, blow: null, createdAt: serverTimestamp(), evaluatedAt: null
+  });
+}
+async function getTeamSecretCached(code, teamId) {
+  if (myTeamSecretCache.code === code && myTeamSecretCache.teamId === teamId && myTeamSecretCache.val) return myTeamSecretCache.val;
+  const s = await getDoc(doc(db, "rooms", code, "teamSecrets", teamId));
+  const val = s.exists() ? s.data().secret : null;
+  myTeamSecretCache = { code, teamId, val };
+  return val;
+}
+
+function renderTeamRoot() {
+  if (!roomData) { renderTeamLobby(); return; }
+  switch (roomData.status) {
+    case "waiting": renderTeamWaiting(); break;
+    case "setting": renderTeamSetting(); break;
+    case "playing": renderTeamGame(); break;
+    case "finished": renderTeamResult(); break;
+    default: renderTeamLobby();
+  }
+}
+function renderTeamLobby(errMsg) {
+  const params = new URLSearchParams(location.search); const prefill = params.get("room") || "";
+  app.innerHTML = `
+    <div class="breadcrumb" id="bcBack">&larr; モード選択に戻る</div>
+    <h2>チーム戦</h2>
+    <div class="sub">チームで1つの合言葉を共有し、交代で相手チームの合言葉を当てます。</div>
+    ${errMsg ? `<div class="error-msg">${escapeHtml(errMsg)}</div>` : ""}
+    <div class="field"><label>あなたの名前</label><input class="aero-input" id="inName" maxlength="12" placeholder="プレイヤー名"></div>
+    <div class="glass-panel">
+      <div class="field"><label>新しいルームを作る場合：1チームの人数</label>
+        <select class="aero-input" id="inTeamSize"><option value="2">2人</option><option value="3">3人</option><option value="4">4人</option></select></div>
+      <button class="aero-btn secondary wide" id="btnCreate">新しいルームを作る</button>
+    </div>
+    <div class="glass-panel">
+      <div class="field"><label>参加する場合：ルームコード</label><input class="aero-input" id="inCode" maxlength="5" placeholder="例: AB3XZ" value="${escapeHtml(prefill)}" style="text-transform:uppercase;"></div>
+      <div class="field"><label>参加するチーム</label>
+        <select class="aero-input" id="inTeamChoice"><option value="teamA">チームA</option><option value="teamB">チームB</option></select></div>
+      <button class="aero-btn wide" id="btnJoin">参加する</button>
+    </div>`;
+  document.getElementById("bcBack").onclick = goHome;
+  document.getElementById("btnCreate").onclick = async () => {
+    const name = document.getElementById("inName").value.trim() || "ホスト";
+    const size = parseInt(document.getElementById("inTeamSize").value, 10);
+    try { await teamCreateRoom(name, size); } catch (e) { renderTeamLobby(e.message); }
+  };
+  document.getElementById("btnJoin").onclick = async () => {
+    const name = document.getElementById("inName").value.trim() || "ゲスト";
+    const code = document.getElementById("inCode").value.trim();
+    const teamChoice = document.getElementById("inTeamChoice").value;
+    if (!code) { renderTeamLobby("参加するにはルームコードを入力してください"); return; }
+    try { await teamJoinRoom(code, name, teamChoice); } catch (e) { renderTeamLobby(e.message); }
+  };
+}
+function teamColumnHtml(team, activeUid) {
+  const slots = team.members.map(m => `<div class="team-member ${m.uid === team.members[0].uid ? "captain" : ""} ${m.uid === activeUid ? "active-turn" : ""}">${escapeHtml(m.name)} ${m.uid === myUid ? "" : presenceBadgeHtml(m.uid, "room")}</div>`).join("");
+  return `<div class="team-col"><h4>${escapeHtml(team.name)}（${team.members.length}人）</h4>${slots || `<div class="team-slot-empty">未参加</div>`}</div>`;
+}
+function renderTeamWaiting() {
+  const shareUrl = location.origin + location.pathname + "?room=" + roomCode;
+  const canStart = roomData.hostUid === myUid && roomData.teamA.members.length >= 1 && roomData.teamB.members.length >= 1;
+  app.innerHTML = `
+    ${ownerDeleteButtonHtml()}
+    <h2>メンバーを待っています...</h2>
+    <div class="glass-panel center"><div class="sub" style="margin-bottom:0;">このルームコードを仲間に伝えてください（1チーム最大${roomData.teamSize}人）</div>
+      <div class="code-display">${roomCode}</div>
+      <div class="copy-row"><input class="aero-input" id="shareUrl" readonly value="${escapeHtml(shareUrl)}"><button class="aero-btn" id="btnCopy">コピー</button></div></div>
+    <div class="team-columns">${teamColumnHtml(roomData.teamA)}${teamColumnHtml(roomData.teamB)}</div>
+    ${roomData.hostUid === myUid
+      ? `<button class="aero-btn wide" id="btnStart" ${canStart ? "" : "disabled"}>ゲーム開始（合言葉設定へ）</button><div class="hint">両チームに1人以上いれば開始できます（人数が均等でなくてもOK）。5秒応答がないメンバーは自動的に外れます。</div>`
+      : `<div class="spinner"></div><div class="sub center">ホストが開始するのをお待ちください</div>`}`;
+  document.getElementById("btnCopy").onclick = () => {
+    navigator.clipboard.writeText(shareUrl).then(() => { const b = document.getElementById("btnCopy"); b.textContent = "コピーしました！"; setTimeout(() => b.textContent = "コピー", 1500); });
+  };
+  const startBtn = document.getElementById("btnStart");
+  if (startBtn) startBtn.onclick = async () => { startBtn.disabled = true; await updateDoc(doc(db, "rooms", roomCode), { status: "setting" }); };
+}
+async function renderTeamSetting() {
+  const mt = myTeamId();
+  const team = roomData[mt];
+  const isCaptain = team.members[0].uid === myUid;
+  const alreadySet = (roomData.readyTeams || []).includes(mt);
+  const otherTeamId = mt === "teamA" ? "teamB" : "teamA";
+  const otherReady = (roomData.readyTeams || []).includes(otherTeamId);
+  if (alreadySet) {
+    const secret = await getTeamSecretCached(roomCode, mt);
+    app.innerHTML = `<h2>チームの合言葉を設定しました</h2><div class="glass-panel center"><div class="digit-boxes">${digitBoxesHtml(secret)}</div></div>
+      <div class="spinner"></div><div class="sub center">${otherReady ? "まもなく開始します..." : "相手チームの準備をお待ちください..."}</div>`;
+    return;
+  }
+  if (!isCaptain) {
+    app.innerHTML = `<h2>合言葉を設定中...</h2><div class="glass-panel center"><div class="sub" style="margin-bottom:0;">キャプテンの ${escapeHtml(team.members[0].name)} さんが合言葉を設定しています</div></div><div class="spinner"></div>`;
+    return;
+  }
+  app.innerHTML = `
+    <h2>チームの合言葉を設定してください（キャプテン: あなた）</h2>
+    <div class="sub">重複のない4桁の数字を決めましょう。チームメイト全員に共有され、一緒に守ります。</div>
+    <div class="field"><input class="aero-input" id="inSecret" maxlength="4" inputmode="numeric" placeholder="4桁の数字（重複なし）" style="text-align:center;font-size:24px;letter-spacing:10px;"></div>
+    <div id="secErr"></div><button class="aero-btn wide" id="btnSetSecret">決定</button>`;
+  const input = document.getElementById("inSecret");
+  input.oninput = () => { input.value = input.value.replace(/[^0-9]/g, "").slice(0, 4); };
+  document.getElementById("btnSetSecret").onclick = async () => {
+    const v = input.value, errBox = document.getElementById("secErr");
+    if (!isValidDigits(v)) { errBox.innerHTML = `<div class="error-msg">4桁の「重複しない」数字を入力してください</div>`; return; }
+    document.getElementById("btnSetSecret").disabled = true;
+    try { await teamSetSecret(roomCode, mt, v); } catch (e) { errBox.innerHTML = `<div class="error-msg">${escapeHtml(e.message)}</div>`; document.getElementById("btnSetSecret").disabled = false; }
+  };
+}
+async function renderTeamGame() {
+  const mt = myTeamId();
+  const myTurn = roomData.turn === myUid;
+  const myTeamTurn = roomData.turnTeam === mt;
+  const secret = await getTeamSecretCached(roomCode, mt);
+  const historyHtml = allGuesses.slice().reverse().map(g => {
+    const teamLabel = g.guesserTeam === "teamA" ? roomData.teamA.name : roomData.teamB.name;
+    return guessRowHtml(g, `${g.guesserName || "?"}(${teamLabel})`);
+  }).join("");
+  let badge;
+  if (myTurn) badge = `<div class="turn-badge mine">あなたの番です</div>`;
+  else if (myTeamTurn) badge = `<div class="turn-badge wait">チームメイトの番です</div>`;
+  else badge = `<div class="turn-badge theirs">相手チームの番です</div>`;
+  app.innerHTML = `
+    <div class="team-columns">${teamColumnHtml(roomData.teamA, roomData.turn)}${teamColumnHtml(roomData.teamB, roomData.turn)}</div>
+    ${badge}
+    <div class="glass-panel"><div class="field" style="margin-bottom:6px;"><label>チームの合言葉</label></div><div class="digit-boxes">${digitBoxesHtml(secret)}</div></div>
+    <div class="field"><label>予想する数字（4桁・重複なし）</label>
+      <div class="row"><input class="aero-input" id="inGuess" maxlength="4" inputmode="numeric" placeholder="1234" style="text-align:center;font-size:20px;letter-spacing:8px;" ${myTurn ? "" : "disabled"}>
+      <button class="aero-btn" id="btnGuess" ${myTurn ? "" : "disabled"}>予想する</button></div><div id="guessErr"></div></div>
+    <h3 style="margin-top:18px;">対戦履歴</h3><div class="history">${historyHtml || `<div class="sub">まだ予想はありません</div>`}</div>`;
+  const input = document.getElementById("inGuess");
+  input.oninput = () => { input.value = input.value.replace(/[^0-9]/g, "").slice(0, 4); };
+  const btn = document.getElementById("btnGuess");
+  if (btn) btn.onclick = async () => {
+    const v = input.value, errBox = document.getElementById("guessErr");
+    if (!isValidDigits(v)) { errBox.innerHTML = `<div class="error-msg">4桁の「重複しない」数字を入力してください</div>`; return; }
+    btn.disabled = true;
+    try { await teamSubmitGuess(roomCode, v); input.value = ""; } catch (e) { errBox.innerHTML = `<div class="error-msg">${escapeHtml(e.message)}</div>`; }
+    btn.disabled = false;
+  };
+}
+async function renderTeamResult() {
+  const mt = myTeamId(); const iWonTeam = roomData.winnerTeam === mt;
+  const winnerName = roomData.winnerTeam ? roomData[roomData.winnerTeam].name : "?";
+  app.innerHTML = `
+    <div class="result-banner ${iWonTeam ? "win" : "lose"}">${iWonTeam ? `${escapeHtml(winnerName)} の勝ちです！（あなたのチーム）` : `${escapeHtml(winnerName)} の勝ちです`}</div>
+    <div class="glass-panel"><div class="sub" style="margin-bottom:4px;">合言葉の答え合わせ</div><div class="secret-reveal" id="revealArea"><div class="sub">読み込み中...</div></div></div>
+    <button class="aero-btn wide" id="btnAgain">モード選択に戻る</button>
+    <h3 style="margin-top:18px;">対戦履歴</h3>
+    <div class="history">${allGuesses.slice().reverse().map(g => guessRowHtml(g, `${g.guesserName || "?"}(${g.guesserTeam === "teamA" ? roomData.teamA.name : roomData.teamB.name})`)).join("")}</div>`;
+  document.getElementById("btnAgain").onclick = goHome;
+  try {
+    const [sA, sB] = await Promise.all([getDoc(doc(db, "rooms", roomCode, "teamSecrets", "teamA")), getDoc(doc(db, "rooms", roomCode, "teamSecrets", "teamB"))]);
+    const area = document.getElementById("revealArea");
+    if (area) area.innerHTML = `
+      <div><b>${escapeHtml(roomData.teamA.name)}</b><div class="digit-boxes">${digitBoxesHtml(sA.data()?.secret)}</div></div>
+      <div><b>${escapeHtml(roomData.teamB.name)}</b><div class="digit-boxes">${digitBoxesHtml(sB.data()?.secret)}</div></div>`;
+  } catch (e) { const area = document.getElementById("revealArea"); if (area) area.innerHTML = `<div class="sub">合言葉の取得に失敗しました</div>`; }
+}
+
+/* =====================================================================
+   トーナメント戦 (TOURNAMENT)
+===================================================================== */
+let tCode = null, tData = null, tMatches = [], unsubT = null, unsubTMatches = null;
+let myActiveMatchId = null, unsubMatchGuesses = null, matchGuesses = [];
+let tHostLock = false; const advancingLocks = new Set();
+let matchSecretCache = { matchId: null, uid: null, val: null };
+
+async function trnCreate(name, size) {
+  myName = name || "ホスト";
+  for (let i = 0; i < 8; i++) {
+    const code = genCode();
+    const ref = doc(db, "tournaments", code);
+    const snap = await getDoc(ref);
+    if (!snap.exists()) {
+      await setDoc(ref, { hostUid: myUid, size, participants: [{ uid: myUid, name: myName }], status: "lobby", champion: null, presence: {}, createdAt: serverTimestamp() });
+      tCode = code; history.replaceState(null, "", "?trn=" + code); trnSubscribe(code); sendHeartbeat(); return;
+    }
+  }
+  throw new Error("コードの生成に失敗しました。");
+}
+async function trnJoin(code, name) {
+  code = code.trim().toUpperCase(); if (!code) throw new Error("コードを入力してください");
+  myName = name || "ゲスト";
+  const ref = doc(db, "tournaments", code); const snap = await getDoc(ref);
+  if (!snap.exists()) throw new Error("そのコードは見つかりません");
+  const data = snap.data();
+  if ((data.participants || []).some(p => p.uid === myUid)) { tCode = code; history.replaceState(null, "", "?trn=" + code); trnSubscribe(code); sendHeartbeat(); return; }
+  if (data.status !== "lobby") throw new Error("このトーナメントは既に開始されています");
+  if ((data.participants || []).length >= data.size) throw new Error("トーナメントは満員です");
+  await updateDoc(ref, { participants: arrayUnion({ uid: myUid, name: myName }) });
+  tCode = code; history.replaceState(null, "", "?trn=" + code); trnSubscribe(code); sendHeartbeat();
+}
+function buildBracket(participants) {
+  const n = participants.length, rounds = Math.log2(n), shuffled = shuffle(participants);
+  const matches = []; let roundSize = n / 2;
+  for (let i = 0; i < roundSize; i++) matches.push({ id: `r1m${i}`, round: 1, index: i, player1: shuffled[i * 2], player2: shuffled[i * 2 + 1] });
+  let prevSize = roundSize;
+  for (let r = 2; r <= rounds; r++) { const size = prevSize / 2; for (let i = 0; i < size; i++) matches.push({ id: `r${r}m${i}`, round: r, index: i, player1: null, player2: null }); prevSize = size; }
+  for (const m of matches) { if (m.round === rounds) continue; m.nextMatchId = `r${m.round + 1}m${Math.floor(m.index / 2)}`; m.nextSlot = (m.index % 2 === 0) ? "player1" : "player2"; }
+  return matches;
+}
+async function trnStart() {
+  const bracket = buildBracket(tData.participants);
+  const batch = writeBatch(db);
+  for (const m of bracket) {
+    const ref = doc(db, "tournaments", tCode, "matches", m.id);
+    batch.set(ref, {
+      round: m.round, index: m.index,
+      player1Uid: m.player1?.uid || null, player1Name: m.player1?.name || null,
+      player2Uid: m.player2?.uid || null, player2Name: m.player2?.name || null,
+      status: (m.player1 && m.player2) ? "setting" : "pending",
+      readyUids: [], turn: null, winner: null, finishReason: null, presence: {},
+      nextMatchId: m.nextMatchId || null, nextSlot: m.nextSlot || null, createdAt: serverTimestamp()
+    });
+  }
+  await batch.commit();
+  await updateDoc(doc(db, "tournaments", tCode), { status: "in_progress" });
+}
+function trnSubscribe(code) {
+  if (unsubT) unsubT(); if (unsubTMatches) unsubTMatches();
+  const tRef = doc(db, "tournaments", code);
+  unsubT = onSnapshot(tRef, (snap) => { if (!snap.exists()) { renderFatal("トーナメントが見つかりません。"); return; } tData = snap.data(); render(); });
+
+  unsubTMatches = onSnapshot(collection(db, "tournaments", code, "matches"), (snap) => {
+    tMatches = snap.docs.map(d => ({ id: d.id, ...d.data() }));
+
+    // ホストは進行管理を担当：pending→setting、finished→次戦への勝者反映、決勝終了→優勝確定
+    if (tData && tData.hostUid === myUid) {
+      for (const m of tMatches) {
+        if (m.status === "setting" && (m.readyUids || []).length >= 2 && !m.turn && !advancingLocks.has(m.id + ":turn")) {
+          advancingLocks.add(m.id + ":turn");
+          updateDoc(doc(db, "tournaments", code, "matches", m.id), { status: "playing", turn: m.player1Uid }).finally(() => advancingLocks.delete(m.id + ":turn"));
+        }
+        if (m.status === "pending" && m.player1Uid && m.player2Uid && !advancingLocks.has(m.id + ":pend")) {
+          advancingLocks.add(m.id + ":pend");
+          updateDoc(doc(db, "tournaments", code, "matches", m.id), { status: "setting" }).finally(() => advancingLocks.delete(m.id + ":pend"));
+        }
+        if (m.status === "finished" && m.winner && m.nextMatchId && !advancingLocks.has(m.id + ":next")) {
+          const next = tMatches.find(x => x.id === m.nextMatchId);
+          const slotUidKey = m.nextSlot + "Uid", slotNameKey = m.nextSlot + "Name";
+          if (next && !next[slotUidKey]) {
+            advancingLocks.add(m.id + ":next");
+            const winnerName = m.player1Uid === m.winner ? m.player1Name : m.player2Name;
+            updateDoc(doc(db, "tournaments", code, "matches", m.nextMatchId), { [slotUidKey]: m.winner, [slotNameKey]: winnerName }).finally(() => advancingLocks.delete(m.id + ":next"));
+          }
+        }
+        if (m.status === "finished" && m.winner && !m.nextMatchId && tData.status !== "finished" && !advancingLocks.has("champion")) {
+          advancingLocks.add("champion");
+          const winnerName = m.player1Uid === m.winner ? m.player1Name : m.player2Name;
+          updateDoc(tRef, { status: "finished", champion: { uid: m.winner, name: winnerName } }).finally(() => advancingLocks.delete("champion"));
+        }
+      }
+    }
+
+    const active = tMatches.find(m => (m.player1Uid === myUid || m.player2Uid === myUid) && m.status !== "finished");
+    const newActiveId = active ? active.id : null;
+    if (newActiveId !== myActiveMatchId) {
+      myActiveMatchId = newActiveId;
+      if (unsubMatchGuesses) { unsubMatchGuesses(); unsubMatchGuesses = null; }
+      matchGuesses = [];
+      if (myActiveMatchId) { trnSubscribeMatchGuesses(code, myActiveMatchId); sendHeartbeat(); }
+    }
+    render();
+  });
+}
+function trnSubscribeMatchGuesses(code, matchId) {
+  const matchRef = doc(db, "tournaments", code, "matches", matchId);
+  const gq = query(collection(db, "tournaments", code, "matches", matchId, "guesses"), orderBy("createdAt", "asc"));
+  unsubMatchGuesses = onSnapshot(gq, (snap) => {
+    snap.docChanges().forEach(async (change) => {
+      if (change.type !== "added") return;
+      const g = change.doc.data(), gid = change.doc.id;
+      if (g.targetUid === myUid && g.hit === null) {
+        const secretSnap = await getDoc(doc(db, "tournaments", code, "matches", matchId, "secrets", myUid));
+        const secret = secretSnap.exists() ? secretSnap.data().secret : null;
+        if (!secret) return;
+        const { hit, blow } = calcHitBlow(secret, g.guess);
+        await updateDoc(doc(db, "tournaments", code, "matches", matchId, "guesses", gid), { hit, blow, evaluatedAt: serverTimestamp() });
+        if (hit === DIGITS) await updateDoc(matchRef, { status: "finished", winner: g.guesserUid });
+        else await updateDoc(matchRef, { turn: myUid });
+      }
+    });
+    matchGuesses = snap.docs.map(d => ({ id: d.id, ...d.data() }));
+    render();
+  });
+}
+async function trnSetSecret(code, matchId, digits) {
+  await setDoc(doc(db, "tournaments", code, "matches", matchId, "secrets", myUid), { secret: digits, createdAt: serverTimestamp() });
+  matchSecretCache = { matchId, uid: myUid, val: digits };
+  await updateDoc(doc(db, "tournaments", code, "matches", matchId), { readyUids: arrayUnion(myUid) });
+}
+async function trnSubmitGuess(code, matchId, matchData, digits) {
+  const targetUid = matchData.player1Uid === myUid ? matchData.player2Uid : matchData.player1Uid;
+  await addDoc(collection(db, "tournaments", code, "matches", matchId, "guesses"), {
+    guesserUid: myUid, guesserName: myName, targetUid, guess: digits, hit: null, blow: null, createdAt: serverTimestamp(), evaluatedAt: null
+  });
+}
+async function getMatchSecretCached(matchId) {
+  if (matchSecretCache.matchId === matchId && matchSecretCache.uid === myUid && matchSecretCache.val) return matchSecretCache.val;
+  const s = await getDoc(doc(db, "tournaments", tCode, "matches", matchId, "secrets", myUid));
+  const val = s.exists() ? s.data().secret : null;
+  matchSecretCache = { matchId, uid: myUid, val };
+  return val;
+}
+
+function bracketHtml() {
+  if (!tMatches.length) return "";
+  const rounds = Math.max(...tMatches.map(m => m.round));
+  let html = `<div class="bracket">`;
+  for (let r = 1; r <= rounds; r++) {
+    const ms = tMatches.filter(m => m.round === r).sort((a, b) => a.index - b.index);
+    html += `<div class="bracket-round"><div class="rlabel">${r === rounds ? "決勝" : `ラウンド${r}`}</div>`;
+    for (const m of ms) {
+      const p1 = m.player1Name || "TBD", p2 = m.player2Name || "TBD";
+      const p1cls = m.status === "finished" && m.winner === m.player1Uid ? "win" : (m.player1Name ? "" : "tbd");
+      const p2cls = m.status === "finished" && m.winner === m.player2Uid ? "win" : (m.player2Name ? "" : "tbd");
+      html += `<div class="bracket-match"><div class="bp ${p1cls}">${escapeHtml(p1)}</div><div class="bp ${p2cls}">${escapeHtml(p2)}</div></div>`;
+    }
+    html += `</div>`;
+  }
+  html += `</div>`;
+  return html;
+}
+
+function renderTournamentRoot() {
+  if (!tData) { renderTrnLobby(); return; }
+  if (tData.status === "lobby") { renderTrnGathering(); return; }
+  if (tData.status === "finished") { renderTrnFinished(); return; }
+  // in_progress
+  const myMatch = tMatches.find(m => m.id === myActiveMatchId);
+  if (myMatch) {
+    if (myMatch.status === "setting") { renderTrnSetting(myMatch); return; }
+    if (myMatch.status === "playing") { renderTrnGame(myMatch); return; }
+  }
+  renderTrnWaitingBracket();
+}
+function renderTrnLobby(errMsg) {
+  const params = new URLSearchParams(location.search); const prefill = params.get("trn") || "";
+  app.innerHTML = `
+    <div class="breadcrumb" id="bcBack">&larr; モード選択に戻る</div>
+    <h2>トーナメント戦</h2>
+    <div class="sub">4人または8人での勝ち抜き戦です（1対1のシングルエリミネーション）。</div>
+    ${errMsg ? `<div class="error-msg">${escapeHtml(errMsg)}</div>` : ""}
+    <div class="field"><label>あなたの名前</label><input class="aero-input" id="inName" maxlength="12" placeholder="プレイヤー名"></div>
+    <div class="glass-panel">
+      <div class="field"><label>新規作成：参加人数</label><select class="aero-input" id="inSize"><option value="4">4人</option><option value="8">8人</option></select></div>
+      <button class="aero-btn secondary wide" id="btnCreate">新しいトーナメントを作る</button>
+    </div>
+    <div class="glass-panel">
+      <div class="field"><label>参加する：トーナメントコード</label><input class="aero-input" id="inCode" maxlength="5" placeholder="例: AB3XZ" value="${escapeHtml(prefill)}" style="text-transform:uppercase;"></div>
+      <button class="aero-btn wide" id="btnJoin">参加する</button>
+    </div>`;
+  document.getElementById("bcBack").onclick = goHome;
+  document.getElementById("btnCreate").onclick = async () => {
+    const name = document.getElementById("inName").value.trim() || "ホスト";
+    const size = parseInt(document.getElementById("inSize").value, 10);
+    try { await trnCreate(name, size); } catch (e) { renderTrnLobby(e.message); }
+  };
+  document.getElementById("btnJoin").onclick = async () => {
+    const name = document.getElementById("inName").value.trim() || "ゲスト";
+    const code = document.getElementById("inCode").value.trim();
+    if (!code) { renderTrnLobby("コードを入力してください"); return; }
+    try { await trnJoin(code, name); } catch (e) { renderTrnLobby(e.message); }
+  };
+}
+function renderTrnGathering() {
+  const shareUrl = location.origin + location.pathname + "?trn=" + tCode;
+  const canStart = tData.hostUid === myUid && tData.participants.length === tData.size;
+  app.innerHTML = `
+    <h2>参加者を待っています...</h2>
+    <div class="glass-panel center"><div class="sub" style="margin-bottom:0;">このコードを共有してください（${tData.participants.length} / ${tData.size} 人）</div>
+      <div class="code-display">${tCode}</div>
+      <div class="copy-row"><input class="aero-input" id="shareUrl" readonly value="${escapeHtml(shareUrl)}"><button class="aero-btn" id="btnCopy">コピー</button></div></div>
+    <div class="glass-panel"><div class="sub" style="margin-bottom:6px;">参加者一覧</div>
+      ${tData.participants.map(p => `<div class="team-member">${escapeHtml(p.name)}${p.uid === tData.hostUid ? " (ホスト)" : ""}</div>`).join("")}</div>
+    ${tData.hostUid === myUid
+      ? `<button class="aero-btn wide" id="btnStart" ${canStart ? "" : "disabled"}>抽選してトーナメント開始</button><div class="hint">${tData.size}人揃うと開始できます</div>`
+      : `<div class="spinner"></div><div class="sub center">ホストが開始するのをお待ちください</div>`}`;
+  document.getElementById("btnCopy").onclick = () => {
+    navigator.clipboard.writeText(shareUrl).then(() => { const b = document.getElementById("btnCopy"); b.textContent = "コピーしました！"; setTimeout(() => b.textContent = "コピー", 1500); });
+  };
+  const startBtn = document.getElementById("btnStart");
+  if (startBtn) startBtn.onclick = async () => { startBtn.disabled = true; try { await trnStart(); } catch (e) { renderTrnGathering(); alert(e.message); } };
+}
+async function renderTrnSetting(m) {
+  const already = (m.readyUids || []).includes(myUid);
+  const oppName = m.player1Uid === myUid ? m.player2Name : m.player1Name;
+  let bodyHtml;
+  if (already) {
+    const secret = await getMatchSecretCached(m.id);
+    bodyHtml = `<h2>合言葉を設定しました</h2><div class="glass-panel center"><div class="digit-boxes">${digitBoxesHtml(secret)}</div></div>
+      <div class="spinner"></div><div class="sub center">${escapeHtml(oppName || "相手")} の準備をお待ちください...</div>`;
+  } else {
+    bodyHtml = `<h2>${escapeHtml(oppName || "相手")} 戦：合言葉を設定してください</h2>
+      <div class="sub">重複のない4桁の数字を決めましょう。</div>
+      <div class="field"><input class="aero-input" id="inSecret" maxlength="4" inputmode="numeric" placeholder="4桁の数字（重複なし）" style="text-align:center;font-size:24px;letter-spacing:10px;"></div>
+      <div id="secErr"></div><button class="aero-btn wide" id="btnSetSecret">決定</button>`;
+  }
+  app.innerHTML = `<div class="glass-panel" style="margin-bottom:12px;"><div class="sub" style="margin:0;">ラウンド${m.round} の対戦</div></div>` + bodyHtml + `<h3 style="margin-top:18px;">トーナメント表</h3>${bracketHtml()}`;
+  const input = document.getElementById("inSecret");
+  if (input) {
+    input.oninput = () => { input.value = input.value.replace(/[^0-9]/g, "").slice(0, 4); };
+    document.getElementById("btnSetSecret").onclick = async () => {
+      const v = input.value, errBox = document.getElementById("secErr");
+      if (!isValidDigits(v)) { errBox.innerHTML = `<div class="error-msg">4桁の「重複しない」数字を入力してください</div>`; return; }
+      document.getElementById("btnSetSecret").disabled = true;
+      try { await trnSetSecret(tCode, m.id, v); } catch (e) { errBox.innerHTML = `<div class="error-msg">${escapeHtml(e.message)}</div>`; document.getElementById("btnSetSecret").disabled = false; }
+    };
+  }
+}
+async function renderTrnGame(m) {
+  const myTurn = m.turn === myUid;
+  const oppName = m.player1Uid === myUid ? m.player2Name : m.player1Name;
+  const secret = await getMatchSecretCached(m.id);
+  const historyHtml = matchGuesses.slice().reverse().map(g => guessRowHtml(g, g.guesserUid === myUid ? "あなた" : (g.guesserName || "相手"))).join("");
+  app.innerHTML = `
+    <div class="glass-panel" style="margin-bottom:12px;"><div class="sub" style="margin:0;">ラウンド${m.round} の対戦</div></div>
+    <div class="players"><div class="player-chip">${escapeHtml(m.player1Name)} ${m.player1Uid === myUid ? "(あなた)" : ""}</div><div class="player-chip">${escapeHtml(m.player2Name)} ${m.player2Uid === myUid ? "(あなた)" : ""}</div></div>
+    <div class="turn-badge ${myTurn ? "mine" : "theirs"}">${myTurn ? "あなたの番です" : `${escapeHtml(oppName || "相手")} の番です`}</div>
+    <div class="glass-panel"><div class="field" style="margin-bottom:6px;"><label>あなたの合言葉</label></div><div class="digit-boxes">${digitBoxesHtml(secret)}</div></div>
+    <div class="field"><label>予想する数字（4桁・重複なし）</label>
+      <div class="row"><input class="aero-input" id="inGuess" maxlength="4" inputmode="numeric" placeholder="1234" style="text-align:center;font-size:20px;letter-spacing:8px;" ${myTurn ? "" : "disabled"}>
+      <button class="aero-btn" id="btnGuess" ${myTurn ? "" : "disabled"}>予想する</button></div><div id="guessErr"></div></div>
+    <h3 style="margin-top:18px;">対戦履歴</h3><div class="history">${historyHtml || `<div class="sub">まだ予想はありません</div>`}</div>
+    <h3 style="margin-top:18px;">トーナメント表</h3>${bracketHtml()}`;
+  const input = document.getElementById("inGuess");
+  input.oninput = () => { input.value = input.value.replace(/[^0-9]/g, "").slice(0, 4); };
+  const btn = document.getElementById("btnGuess");
+  if (btn) btn.onclick = async () => {
+    const v = input.value, errBox = document.getElementById("guessErr");
+    if (!isValidDigits(v)) { errBox.innerHTML = `<div class="error-msg">4桁の「重複しない」数字を入力してください</div>`; return; }
+    btn.disabled = true;
+    try { await trnSubmitGuess(tCode, m.id, m, v); input.value = ""; } catch (e) { errBox.innerHTML = `<div class="error-msg">${escapeHtml(e.message)}</div>`; }
+    btn.disabled = false;
+  };
+}
+function renderTrnWaitingBracket() {
+  const myFinishedLoss = tMatches.some(m => m.status === "finished" && (m.player1Uid === myUid || m.player2Uid === myUid) && m.winner !== myUid);
+  const stillIn = tMatches.some(m => (m.player1Uid === myUid || m.player2Uid === myUid) && m.status !== "finished") ||
+                   (myFinishedLoss ? false : tMatches.some(m => m.status === "finished" && m.winner === myUid && !m.nextMatchId));
+  app.innerHTML = `
+    <h2>${myFinishedLoss ? "あなたは敗退しました" : "次の対戦をお待ちください"}</h2>
+    <div class="sub">${myFinishedLoss ? "引き続き他の対戦の行方を見守りましょう。" : "対戦相手が決まり次第、合言葉の設定に進みます。"}</div>
+    <div class="spinner"></div>
+    <h3 style="margin-top:18px;">トーナメント表</h3>${bracketHtml()}`;
+}
+function renderTrnFinished() {
+  const iAmChampion = tData.champion && tData.champion.uid === myUid;
+  app.innerHTML = `
+    <div class="result-banner ${iAmChampion ? "win" : "lose"}"> 優勝: ${escapeHtml(tData.champion?.name || "?")} ${iAmChampion ? "（あなた！）" : ""}</div>
+    <button class="aero-btn wide" id="btnAgain">モード選択に戻る</button>
+    <h3 style="margin-top:18px;">最終トーナメント表</h3>${bracketHtml()}`;
+  document.getElementById("btnAgain").onclick = goHome;
+}
+
+/* ==================== 起動 ==================== */
+document.addEventListener("click", (e) => {
+  if (e.target && e.target.id === "btnClose") { if (confirm("最初の画面に戻りますか？")) goHome(); }
+});
+
+(async function boot() {
+  await ensureAuth();
+  const params = new URLSearchParams(location.search);
+  const roomFromUrl = params.get("room");
+  const trnFromUrl = params.get("trn");
+  try {
+    if (roomFromUrl) {
+      const ref = doc(db, "rooms", roomFromUrl.toUpperCase());
+      const snap = await getDoc(ref);
+      if (snap.exists()) {
+        const data = snap.data();
+        const uidsInRoom = data.mode === "team"
+          ? [...(data.teamA.memberUids || []), ...(data.teamB.memberUids || [])]
+          : [data.player1Uid, data.player2Uid];
+        if (uidsInRoom.includes(myUid)) {
+          mode = data.mode; roomCode = roomFromUrl.toUpperCase(); myName = myName;
+          if (mode === "solo") soloSubscribe(roomCode); else teamSubscribe(roomCode);
+          return;
+        }
+      }
+    } else if (trnFromUrl) {
+      const ref = doc(db, "tournaments", trnFromUrl.toUpperCase());
+      const snap = await getDoc(ref);
+      if (snap.exists()) {
+        const data = snap.data();
+        if ((data.participants || []).some(p => p.uid === myUid)) {
+          mode = "tournament"; tCode = trnFromUrl.toUpperCase();
+          trnSubscribe(tCode);
+          return;
+        }
+      }
+    }
+  } catch (e) { /* fall through to mode select */ }
+  render();
+})();
+</script>
+</body>
+</html>
