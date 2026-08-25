@@ -5,17 +5,16 @@
 <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0">
 <title>Hit &amp; Blow Online - リアルタイム数当てバトル</title>
 
-
 <meta property="og:title" content="Hit &amp; Blow Online - リアルタイム数当てバトル">
-<meta property="og:description" content="個人戦・チーム戦・トーナメント戦で友達と対戦！4桁の数字を読み合うリアルタイム対戦型Hit&Blow。">
+<meta property="og:description" content="個人戦・チーム戦・トーナメント戦で友達と対戦！3〜5桁の数字を読み合うリアルタイム対戦型Hit&Blow。">
 <meta property="og:type" content="website">
 <meta property="og:site_name" content="Hit &amp; Blow Online">
 <meta property="og:locale" content="ja_JP">
-<meta property="og:url" content="https://azuk1-azq.github.io/hitandblow">
+<meta property="og:url" content="https://azuk1-azq.github.io/hitandblow/">
 <meta name="twitter:card" content="summary">
 <meta name="twitter:title" content="Hit &amp; Blow Online - リアルタイム数当てバトル">
-<meta name="twitter:description" content="個人戦・チーム戦・トーナメント戦で友達と対戦！4桁の数字を読み合うリアルタイム対戦型Hit&Blow。">
-<meta name="description" content="個人戦・チーム戦・トーナメント戦で友達と対戦！4桁の数字を読み合うリアルタイム対戦型Hit&Blow。Googleスタイルのシンプルなデザイン、Firebaseリアルタイム同期。">
+<meta name="twitter:description" content="個人戦・チーム戦・トーナメント戦で友達と対戦！3〜5桁の数字を読み合うリアルタイム対戦型Hit&Blow。">
+<meta name="description" content="個人戦・チーム戦・トーナメント戦で友達と対戦！3〜5桁の数字を読み合うリアルタイム対戦型Hit&Blow。Googleスタイルのシンプルなデザイン、Firebaseリアルタイム同期。">
 <!-- ============================================================ -->
 
 <link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 64 64'%3E%3Cdefs%3E%3ClinearGradient id='g' x1='0' y1='0' x2='0' y2='1'%3E%3Cstop offset='0' stop-color='%23eaf6ff'/%3E%3Cstop offset='.5' stop-color='%237dc2f0'/%3E%3Cstop offset='1' stop-color='%232f7cc4'/%3E%3C/linearGradient%3E%3C/defs%3E%3Ccircle cx='32' cy='32' r='30' fill='url(%23g)' stroke='%231a4d7a' stroke-width='2'/%3E%3Ctext x='32' y='42' font-size='28' text-anchor='middle' fill='%230a3660' font-family='Arial' font-weight='bold'%3EHB%3C/text%3E%3C/svg%3E">
@@ -212,19 +211,28 @@ const db = getFirestore(fbApp);
 
 /* ==================== 共通ユーティリティ ==================== */
 const CODE_CHARS = "ABCDEFGHJKLMNPQRSTUVWXYZ23456789";
-const DIGITS = 4;
+const DEFAULT_DIGITS = 4;
 let myUid = null, myName = "プレイヤー";
 const app = document.getElementById("app");
 
 function genCode(len = 5) { let s = ""; for (let i = 0; i < len; i++) s += CODE_CHARS[Math.floor(Math.random() * CODE_CHARS.length)]; return s; }
-function isValidDigits(str) { if (!/^\d{4}$/.test(str)) return false; return new Set(str.split("")).size === DIGITS; }
-function calcHitBlow(secret, guess) {
+function isValidDigits(str, n) {
+  n = n || DEFAULT_DIGITS;
+  const re = new RegExp(`^\\d{${n}}$`);
+  if (!re.test(str)) return false;
+  return new Set(str.split("")).size === n;
+}
+function calcHitBlow(secret, guess, n) {
+  n = n || (secret ? secret.length : DEFAULT_DIGITS);
   let hit = 0, blow = 0; const s = secret.split(""), g = guess.split("");
-  for (let i = 0; i < DIGITS; i++) { if (g[i] === s[i]) hit++; else if (s.includes(g[i])) blow++; }
+  for (let i = 0; i < n; i++) { if (g[i] === s[i]) hit++; else if (s.includes(g[i])) blow++; }
   return { hit, blow };
 }
 function escapeHtml(str) { return String(str ?? "").replace(/[&<>"']/g, c => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" }[c])); }
-function digitBoxesHtml(str) { return (str || "????").split("").map(d => `<div class="digit-box">${escapeHtml(d)}</div>`).join(""); }
+function digitBoxesHtml(str, n) { const s = str || "?".repeat(n || DEFAULT_DIGITS); return s.split("").map(d => `<div class="digit-box">${escapeHtml(d)}</div>`).join(""); }
+function digitsSelectHtml(id) {
+  return `<select class="aero-input" id="${id}"><option value="3">3桁</option><option value="4" selected>4桁</option><option value="5">5桁</option></select>`;
+}
 function guessRowHtml(g, whoLabel) {
   const badges = (g.hit === null || g.hit === undefined)
     ? `<span class="badge pending">判定中...</span>`
@@ -248,8 +256,9 @@ function ensureAuth() {
 }
 
 /* ==================== プレゼンス（在席確認）と自動退出判定 ==================== */
-const PRESENCE_INTERVAL_MS = 2000;
-const PRESENCE_TIMEOUT_MS = 5000;
+const PRESENCE_INTERVAL_MS = 30000;   // 30秒ごとに在席をpingで通知
+const PRESENCE_TIMEOUT_MS = 300000;   // 5分間pingがなければ切断とみなす
+const EXPIRE_BUFFER_MS = 360000;      // 全員切断後、6分でexpireAtが過去になる（TTL・自動削除用の猶予）
 let heartbeatTimer = null, presenceTickTimer = null, isJudging = false;
 
 function lastSeenMillis(obj, uid) {
@@ -264,18 +273,32 @@ function isOnline(obj, uid) {
   const t = lastSeenMillis(obj, uid);
   return t > 0 && (Date.now() - t) < PRESENCE_TIMEOUT_MS;
 }
+function isExpired(data) {
+  if (!data || !data.expireAt) return false;
+  const t = typeof data.expireAt.toMillis === "function" ? data.expireAt.toMillis() : (data.expireAt.seconds * 1000);
+  return Date.now() > t;
+}
 function presenceBadgeHtml(uid, src) {
   return `<span class="presence-badge" data-uid="${escapeHtml(uid)}" data-src="${src}"></span>`;
 }
 async function sendHeartbeat() {
   try {
     if ((mode === "solo" || mode === "team") && roomCode) {
-      await updateDoc(doc(db, "rooms", roomCode), { [`presence.${myUid}`]: serverTimestamp() });
+      await updateDoc(doc(db, "rooms", roomCode), {
+        [`presence.${myUid}`]: serverTimestamp(),
+        expireAt: new Date(Date.now() + EXPIRE_BUFFER_MS)
+      });
     }
     if (mode === "tournament" && tCode) {
-      await updateDoc(doc(db, "tournaments", tCode), { [`presence.${myUid}`]: serverTimestamp() });
+      await updateDoc(doc(db, "tournaments", tCode), {
+        [`presence.${myUid}`]: serverTimestamp(),
+        expireAt: new Date(Date.now() + EXPIRE_BUFFER_MS)
+      });
       if (myActiveMatchId) {
-        await updateDoc(doc(db, "tournaments", tCode, "matches", myActiveMatchId), { [`presence.${myUid}`]: serverTimestamp() });
+        await updateDoc(doc(db, "tournaments", tCode, "matches", myActiveMatchId), {
+          [`presence.${myUid}`]: serverTimestamp(),
+          expireAt: new Date(Date.now() + EXPIRE_BUFFER_MS)
+        });
       }
     }
   } catch (e) { /* 接続が不安定な場合は無視 */ }
@@ -283,7 +306,7 @@ async function sendHeartbeat() {
 function startHeartbeat() { if (!heartbeatTimer) heartbeatTimer = setInterval(sendHeartbeat, PRESENCE_INTERVAL_MS); }
 function startPresenceTicker() {
   if (presenceTickTimer) return;
-  presenceTickTimer = setInterval(() => { updatePresenceBadges(); runAutoJudgment(); }, 1000);
+  presenceTickTimer = setInterval(() => { updatePresenceBadges(); runAutoJudgment(); }, 5000);
 }
 function updatePresenceBadges() {
   document.querySelectorAll(".presence-badge[data-uid]").forEach((el) => {
@@ -301,14 +324,14 @@ async function runAutoJudgment() {
   if (isJudging) return;
   isJudging = true;
   try {
-    // 個人戦：対戦中に相手が5秒応答なしなら自分の勝ちにする
+    // 個人戦：対戦中に相手が5分間ping(応答)なし(切断)なら自分の勝ちにする
     if (mode === "solo" && roomData && roomCode && (roomData.status === "setting" || roomData.status === "playing")) {
       const oppUid = roomData.player1Uid === myUid ? roomData.player2Uid : roomData.player1Uid;
       if (oppUid && !isOnline(roomData, oppUid)) {
         await updateDoc(doc(db, "rooms", roomCode), { status: "finished", winner: myUid, finishReason: "opponent_left" }).catch(() => {});
       }
     }
-    // チーム戦：対戦中に相手チーム全員が5秒応答なしなら自チームの勝ちにする
+    // チーム戦：対戦中に相手チーム全員が5分間ping(応答)なし(切断)なら自チームの勝ちにする
     if (mode === "team" && roomData && roomCode && (roomData.status === "setting" || roomData.status === "playing")) {
       const mt = myTeamId();
       if (mt) {
@@ -319,7 +342,7 @@ async function runAutoJudgment() {
         }
       }
     }
-    // チーム戦：メンバー募集中、ホストが5秒応答なしのメンバーを自動的に外す
+    // チーム戦：メンバー募集中、ホストが5分間ping(応答)なし(切断)のメンバーを自動的に外す
     if (mode === "team" && roomData && roomCode && roomData.status === "waiting" && roomData.hostUid === myUid) {
       for (const teamId of ["teamA", "teamB"]) {
         const team = roomData[teamId];
@@ -333,7 +356,7 @@ async function runAutoJudgment() {
         }
       }
     }
-    // トーナメント：ロビーで5秒応答なしの参加者をホストが自動的に外す
+    // トーナメント：ロビーで5分間ping(応答)なし(切断)の参加者をホストが自動的に外す
     if (mode === "tournament" && tData && tCode && tData.status === "lobby" && tData.hostUid === myUid) {
       for (const p of tData.participants || []) {
         if (p.uid !== myUid && !isOnline(tData, p.uid)) {
@@ -341,7 +364,7 @@ async function runAutoJudgment() {
         }
       }
     }
-    // トーナメント：対戦中に相手が5秒応答なしなら自分の勝ちにする
+    // トーナメント：対戦中に相手が5分間ping(応答)なし(切断)なら自分の勝ちにする
     if (mode === "tournament" && tCode && myActiveMatchId) {
       const m = tMatches.find(x => x.id === myActiveMatchId);
       if (m && (m.status === "setting" || m.status === "playing")) {
@@ -415,7 +438,7 @@ function render() {
 function renderModeSelect() {
   app.innerHTML = `
     <h2>モードを選んでください</h2>
-    <div class="sub">4桁の数字（重複なし）を読み合うリアルタイム対戦ゲームです。</div>
+    <div class="sub">3〜5桁の数字（重複なし、桁数はルーム作成者が選択）を読み合うリアルタイム対戦ゲームです。</div>
     <div class="mode-grid">
       <div class="mode-card" id="cardSolo"><div class="txt"><b>個人戦</b><span>1対1でシンプルに対戦</span></div></div>
       <div class="mode-card" id="cardTeam"><div class="txt"><b>チーム戦</b><span>チームで合言葉を共有して協力対戦</span></div></div>
@@ -433,16 +456,18 @@ function renderModeSelect() {
 let roomCode = null, roomData = null, allGuesses = [], unsubRoom = null, unsubGuesses = null, hostLock = false;
 let mySecretCache = { code: null, uid: null, val: null };
 
-async function soloCreateRoom(name) {
+async function soloCreateRoom(name, digits) {
   myName = name || "ホスト";
+  digits = parseInt(digits, 10) || DEFAULT_DIGITS;
   for (let i = 0; i < 8; i++) {
     const code = genCode();
     const ref = doc(db, "rooms", code);
     const snap = await getDoc(ref);
     if (!snap.exists()) {
       await setDoc(ref, {
-        mode: "solo", player1Uid: myUid, player1Name: myName, player2Uid: null, player2Name: null,
-        status: "waiting", readyUids: [], turn: null, winner: null, finishReason: null, presence: {}, createdAt: serverTimestamp()
+        mode: "solo", digits, player1Uid: myUid, player1Name: myName, player2Uid: null, player2Name: null,
+        status: "waiting", readyUids: [], turn: null, winner: null, finishReason: null, presence: {},
+        expireAt: new Date(Date.now() + EXPIRE_BUFFER_MS), createdAt: serverTimestamp()
       });
       roomCode = code; history.replaceState(null, "", "?room=" + code); soloSubscribe(code); sendHeartbeat(); return;
     }
@@ -455,6 +480,10 @@ async function soloJoinRoom(code, name) {
   const ref = doc(db, "rooms", code); const snap = await getDoc(ref);
   if (!snap.exists()) throw new Error("そのルームコードは見つかりません");
   const data = snap.data();
+  if (isExpired(data)) {
+    await deleteRoomCascade(code).catch(() => {});
+    throw new Error("このルームは誰も接続していなかったため自動的に削除されました。新しく作成してください。");
+  }
   if (data.mode !== "solo") throw new Error("このコードは個人戦のルームではありません");
   if (data.player1Uid === myUid || data.player2Uid === myUid) { roomCode = code; history.replaceState(null, "", "?room=" + code); soloSubscribe(code); sendHeartbeat(); return; }
   if (data.player2Uid) throw new Error("このルームは満室です");
@@ -483,9 +512,9 @@ function soloSubscribe(code) {
         const secretSnap = await getDoc(doc(db, "rooms", code, "secrets", myUid));
         const secret = secretSnap.exists() ? secretSnap.data().secret : null;
         if (!secret) return;
-        const { hit, blow } = calcHitBlow(secret, g.guess);
+        const { hit, blow } = calcHitBlow(secret, g.guess, roomData.digits);
         await updateDoc(doc(db, "rooms", code, "guesses", gid), { hit, blow, evaluatedAt: serverTimestamp() });
-        if (hit === DIGITS) await updateDoc(roomRef, { status: "finished", winner: g.guesserUid });
+        if (hit === roomData.digits) await updateDoc(roomRef, { status: "finished", winner: g.guesserUid });
         else await updateDoc(roomRef, { turn: myUid });
       }
     });
@@ -530,18 +559,23 @@ function renderSoloLobby(errMsg) {
   app.innerHTML = `
     <div class="breadcrumb" id="bcBack">&larr; モード選択に戻る</div>
     <h2>個人戦</h2>
-    <div class="sub">1対1で相手の合言葉（4桁の数字）を当て合います。</div>
+    <div class="sub">1対1で相手の合言葉（数字）を当て合います。</div>
     ${errMsg ? `<div class="error-msg">${escapeHtml(errMsg)}</div>` : ""}
     <div class="field"><label>あなたの名前</label><input class="aero-input" id="inName" maxlength="12" placeholder="プレイヤー名"></div>
     <div class="glass-panel">
-      <div class="field" style="margin-bottom:10px;"><label>ルームコード（新規作成する場合は空欄）</label>
+      <div class="field"><label>新しいルームを作る場合：桁数</label>${digitsSelectHtml("inDigits")}</div>
+      <button class="aero-btn secondary wide" id="btnCreate">新しいルームを作る</button>
+    </div>
+    <div class="glass-panel">
+      <div class="field"><label>参加する場合：ルームコード</label>
         <input class="aero-input" id="inCode" maxlength="5" placeholder="例: AB3XZ" value="${escapeHtml(prefill)}" style="text-transform:uppercase;"></div>
-      <div class="row"><button class="aero-btn wide" id="btnJoin">参加する</button><button class="aero-btn secondary wide" id="btnCreate">新しいルームを作る</button></div>
+      <button class="aero-btn wide" id="btnJoin">参加する</button>
     </div>`;
   document.getElementById("bcBack").onclick = goHome;
   document.getElementById("btnCreate").onclick = async () => {
     const name = document.getElementById("inName").value.trim() || "ホスト";
-    try { await soloCreateRoom(name); } catch (e) { renderSoloLobby(e.message); }
+    const digits = document.getElementById("inDigits").value;
+    try { await soloCreateRoom(name, digits); } catch (e) { renderSoloLobby(e.message); }
   };
   document.getElementById("btnJoin").onclick = async () => {
     const name = document.getElementById("inName").value.trim() || "ゲスト";
@@ -555,7 +589,7 @@ function renderSoloWaiting() {
   app.innerHTML = `
     ${ownerDeleteButtonHtml()}
     <h2>相手を待っています...</h2>
-    <div class="glass-panel center"><div class="sub" style="margin-bottom:0;">このルームコードを相手に伝えてください</div>
+    <div class="glass-panel center"><div class="sub" style="margin-bottom:0;">このルームコードを相手に伝えてください（${roomData.digits}桁で対戦します）</div>
       <div class="code-display">${roomCode}</div>
       <div class="copy-row"><input class="aero-input" id="shareUrl" readonly value="${escapeHtml(shareUrl)}"><button class="aero-btn" id="btnCopy">コピー</button></div>
     </div><div class="spinner"></div><div class="sub center">2人目のプレイヤーの参加をお待ちください</div>`;
@@ -564,31 +598,33 @@ function renderSoloWaiting() {
   };
 }
 async function renderSoloSetting() {
+  const n = roomData.digits || DEFAULT_DIGITS;
   const already = (roomData.readyUids || []).includes(myUid);
   const oppUid = (roomData.player1Uid === myUid) ? roomData.player2Uid : roomData.player1Uid;
   const oppName = (roomData.player1Uid === myUid) ? roomData.player2Name : roomData.player1Name;
   if (already) {
     const secret = await getMySecretCached(roomCode);
-    app.innerHTML = `${ownerDeleteButtonHtml()}<h2>合言葉を設定しました</h2><div class="glass-panel center"><div class="digit-boxes">${digitBoxesHtml(secret)}</div></div>
+    app.innerHTML = `${ownerDeleteButtonHtml()}<h2>合言葉を設定しました</h2><div class="glass-panel center"><div class="digit-boxes">${digitBoxesHtml(secret, n)}</div></div>
       <div class="spinner"></div><div class="sub center">${escapeHtml(oppName || "相手")} の準備をお待ちください... ${presenceBadgeHtml(oppUid, "room")}</div>`;
     return;
   }
   app.innerHTML = `
     ${ownerDeleteButtonHtml()}
     <h2>合言葉を設定してください</h2>
-    <div class="sub">重複のない4桁の数字を決めましょう（例: 1234）。</div>
-    <div class="field"><input class="aero-input" id="inSecret" maxlength="4" inputmode="numeric" placeholder="4桁の数字（重複なし）" style="text-align:center;font-size:24px;letter-spacing:10px;"></div>
+    <div class="sub">重複のない${n}桁の数字を決めましょう。</div>
+    <div class="field"><input class="aero-input" id="inSecret" maxlength="${n}" inputmode="numeric" placeholder="${n}桁の数字（重複なし）" style="text-align:center;font-size:24px;letter-spacing:10px;"></div>
     <div id="secErr"></div><button class="aero-btn wide" id="btnSetSecret">決定</button>`;
   const input = document.getElementById("inSecret");
-  input.oninput = () => { input.value = input.value.replace(/[^0-9]/g, "").slice(0, 4); };
+  input.oninput = () => { input.value = input.value.replace(/[^0-9]/g, "").slice(0, n); };
   document.getElementById("btnSetSecret").onclick = async () => {
     const v = input.value, errBox = document.getElementById("secErr");
-    if (!isValidDigits(v)) { errBox.innerHTML = `<div class="error-msg">4桁の「重複しない」数字を入力してください</div>`; return; }
+    if (!isValidDigits(v, n)) { errBox.innerHTML = `<div class="error-msg">${n}桁の「重複しない」数字を入力してください</div>`; return; }
     document.getElementById("btnSetSecret").disabled = true;
     try { await soloSetSecret(roomCode, v); } catch (e) { errBox.innerHTML = `<div class="error-msg">${escapeHtml(e.message)}</div>`; document.getElementById("btnSetSecret").disabled = false; }
   };
 }
 async function renderSoloGame() {
+  const n = roomData.digits || DEFAULT_DIGITS;
   const myTurn = roomData.turn === myUid;
   const oppUid = (roomData.player1Uid === myUid) ? roomData.player2Uid : roomData.player1Uid;
   const oppName = (roomData.player1Uid === myUid) ? roomData.player2Name : roomData.player1Name;
@@ -601,22 +637,23 @@ async function renderSoloGame() {
       <div class="player-chip">${escapeHtml(roomData.player2Name)} ${roomData.player2Uid === myUid ? "(あなた)" : presenceBadgeHtml(roomData.player2Uid, "room")}</div>
     </div>
     <div class="turn-badge ${myTurn ? "mine" : "theirs"}">${myTurn ? "あなたの番です" : `${escapeHtml(oppName || "相手")} の番です`}</div>
-    <div class="glass-panel"><div class="field" style="margin-bottom:6px;"><label>あなたの合言葉</label></div><div class="digit-boxes">${digitBoxesHtml(secret)}</div></div>
-    <div class="field"><label>予想する数字（4桁・重複なし）</label>
-      <div class="row"><input class="aero-input" id="inGuess" maxlength="4" inputmode="numeric" placeholder="1234" style="text-align:center;font-size:20px;letter-spacing:8px;" ${myTurn ? "" : "disabled"}>
+    <div class="glass-panel"><div class="field" style="margin-bottom:6px;"><label>あなたの合言葉</label></div><div class="digit-boxes">${digitBoxesHtml(secret, n)}</div></div>
+    <div class="field"><label>予想する数字（${n}桁・重複なし）</label>
+      <div class="row"><input class="aero-input" id="inGuess" maxlength="${n}" inputmode="numeric" placeholder="${"1".repeat(n)}" style="text-align:center;font-size:20px;letter-spacing:8px;" ${myTurn ? "" : "disabled"}>
       <button class="aero-btn" id="btnGuess" ${myTurn ? "" : "disabled"}>予想する</button></div><div id="guessErr"></div></div>
     <h3 style="margin-top:18px;">対戦履歴</h3><div class="history">${historyHtml || `<div class="sub">まだ予想はありません</div>`}</div>`;
   const input = document.getElementById("inGuess");
-  input.oninput = () => { input.value = input.value.replace(/[^0-9]/g, "").slice(0, 4); };
+  input.oninput = () => { input.value = input.value.replace(/[^0-9]/g, "").slice(0, n); };
   const btn = document.getElementById("btnGuess");
   if (btn) btn.onclick = async () => {
     const v = input.value, errBox = document.getElementById("guessErr");
-    if (!isValidDigits(v)) { errBox.innerHTML = `<div class="error-msg">4桁の「重複しない」数字を入力してください</div>`; return; }
+    if (!isValidDigits(v, n)) { errBox.innerHTML = `<div class="error-msg">${n}桁の「重複しない」数字を入力してください</div>`; return; }
     btn.disabled = true; input.disabled = true;
     try { await soloSubmitGuess(roomCode, v); input.value = ""; } catch (e) { errBox.innerHTML = `<div class="error-msg">${escapeHtml(e.message)}</div>`; btn.disabled = false; input.disabled = false; }
   };
 }
 async function renderSoloResult() {
+  const n = roomData.digits || DEFAULT_DIGITS;
   const iWon = roomData.winner === myUid;
   const oppName = (roomData.player1Uid === myUid) ? roomData.player2Name : roomData.player1Name;
   const forfeitMsg = roomData.finishReason === "opponent_left"
@@ -635,8 +672,8 @@ async function renderSoloResult() {
     const [s1, s2] = await Promise.all([getDoc(doc(db, "rooms", roomCode, "secrets", roomData.player1Uid)), getDoc(doc(db, "rooms", roomCode, "secrets", roomData.player2Uid))]);
     const area = document.getElementById("revealArea");
     if (area) area.innerHTML = `
-      <div><b>${escapeHtml(roomData.player1Name)}</b><div class="digit-boxes">${digitBoxesHtml(s1.data()?.secret)}</div></div>
-      <div><b>${escapeHtml(roomData.player2Name)}</b><div class="digit-boxes">${digitBoxesHtml(s2.data()?.secret)}</div></div>`;
+      <div><b>${escapeHtml(roomData.player1Name)}</b><div class="digit-boxes">${digitBoxesHtml(s1.data()?.secret, n)}</div></div>
+      <div><b>${escapeHtml(roomData.player2Name)}</b><div class="digit-boxes">${digitBoxesHtml(s2.data()?.secret, n)}</div></div>`;
   } catch (e) { const area = document.getElementById("revealArea"); if (area) area.innerHTML = `<div class="sub">合言葉の取得に失敗しました</div>`; }
 }
 
@@ -651,18 +688,20 @@ function myTeamId() {
   if ((roomData.teamB?.memberUids || []).includes(myUid)) return "teamB";
   return null;
 }
-async function teamCreateRoom(name, teamSize) {
+async function teamCreateRoom(name, teamSize, digits) {
   myName = name || "ホスト";
+  digits = parseInt(digits, 10) || DEFAULT_DIGITS;
   for (let i = 0; i < 8; i++) {
     const code = genCode();
     const ref = doc(db, "rooms", code);
     const snap = await getDoc(ref);
     if (!snap.exists()) {
       await setDoc(ref, {
-        mode: "team", teamSize, hostUid: myUid, status: "waiting",
+        mode: "team", digits, teamSize, hostUid: myUid, status: "waiting",
         teamA: { name: "チームA", members: [{ uid: myUid, name: myName }], memberUids: [myUid], ptr: 0 },
         teamB: { name: "チームB", members: [], memberUids: [], ptr: 0 },
-        readyTeams: [], turn: null, turnTeam: null, winner: null, winnerTeam: null, finishReason: null, presence: {}, createdAt: serverTimestamp()
+        readyTeams: [], turn: null, turnTeam: null, winner: null, winnerTeam: null, finishReason: null, presence: {},
+        expireAt: new Date(Date.now() + EXPIRE_BUFFER_MS), createdAt: serverTimestamp()
       });
       roomCode = code; history.replaceState(null, "", "?room=" + code); teamSubscribe(code); sendHeartbeat(); return;
     }
@@ -675,6 +714,10 @@ async function teamJoinRoom(code, name, teamChoice) {
   const ref = doc(db, "rooms", code); const snap = await getDoc(ref);
   if (!snap.exists()) throw new Error("そのルームコードは見つかりません");
   const data = snap.data();
+  if (isExpired(data)) {
+    await deleteRoomCascade(code).catch(() => {});
+    throw new Error("このルームは誰も接続していなかったため自動的に削除されました。新しく作成してください。");
+  }
   if (data.mode !== "team") throw new Error("このコードはチーム戦のルームではありません");
   if ((data.teamA.memberUids || []).includes(myUid) || (data.teamB.memberUids || []).includes(myUid)) {
     roomCode = code; history.replaceState(null, "", "?room=" + code); teamSubscribe(code); sendHeartbeat(); return;
@@ -711,9 +754,9 @@ function teamSubscribe(code) {
         const secretSnap = await getDoc(doc(db, "rooms", code, "teamSecrets", mt));
         const secret = secretSnap.exists() ? secretSnap.data().secret : null;
         if (!secret) return;
-        const { hit, blow } = calcHitBlow(secret, g.guess);
+        const { hit, blow } = calcHitBlow(secret, g.guess, roomData.digits);
         await updateDoc(doc(db, "rooms", code, "guesses", gid), { hit, blow, evaluatedAt: serverTimestamp() });
-        if (hit === DIGITS) {
+        if (hit === roomData.digits) {
           await updateDoc(roomRef, { status: "finished", winner: g.guesserUid, winnerTeam: g.guesserTeam });
         } else {
           const attackerTeam = g.guesserTeam;
@@ -770,6 +813,7 @@ function renderTeamLobby(errMsg) {
     <div class="glass-panel">
       <div class="field"><label>新しいルームを作る場合：1チームの人数</label>
         <select class="aero-input" id="inTeamSize"><option value="2">2人</option><option value="3">3人</option><option value="4">4人</option></select></div>
+      <div class="field"><label>桁数</label>${digitsSelectHtml("inDigits")}</div>
       <button class="aero-btn secondary wide" id="btnCreate">新しいルームを作る</button>
     </div>
     <div class="glass-panel">
@@ -782,7 +826,8 @@ function renderTeamLobby(errMsg) {
   document.getElementById("btnCreate").onclick = async () => {
     const name = document.getElementById("inName").value.trim() || "ホスト";
     const size = parseInt(document.getElementById("inTeamSize").value, 10);
-    try { await teamCreateRoom(name, size); } catch (e) { renderTeamLobby(e.message); }
+    const digits = document.getElementById("inDigits").value;
+    try { await teamCreateRoom(name, size, digits); } catch (e) { renderTeamLobby(e.message); }
   };
   document.getElementById("btnJoin").onclick = async () => {
     const name = document.getElementById("inName").value.trim() || "ゲスト";
@@ -802,12 +847,12 @@ function renderTeamWaiting() {
   app.innerHTML = `
     ${ownerDeleteButtonHtml()}
     <h2>メンバーを待っています...</h2>
-    <div class="glass-panel center"><div class="sub" style="margin-bottom:0;">このルームコードを仲間に伝えてください（1チーム最大${roomData.teamSize}人）</div>
+    <div class="glass-panel center"><div class="sub" style="margin-bottom:0;">このルームコードを仲間に伝えてください（1チーム最大${roomData.teamSize}人・${roomData.digits}桁で対戦します）</div>
       <div class="code-display">${roomCode}</div>
       <div class="copy-row"><input class="aero-input" id="shareUrl" readonly value="${escapeHtml(shareUrl)}"><button class="aero-btn" id="btnCopy">コピー</button></div></div>
     <div class="team-columns">${teamColumnHtml(roomData.teamA)}${teamColumnHtml(roomData.teamB)}</div>
     ${roomData.hostUid === myUid
-      ? `<button class="aero-btn wide" id="btnStart" ${canStart ? "" : "disabled"}>ゲーム開始（合言葉設定へ）</button><div class="hint">両チームに1人以上いれば開始できます（人数が均等でなくてもOK）。5秒応答がないメンバーは自動的に外れます。</div>`
+      ? `<button class="aero-btn wide" id="btnStart" ${canStart ? "" : "disabled"}>ゲーム開始（合言葉設定へ）</button><div class="hint">両チームに1人以上いれば開始できます（人数が均等でなくてもOK）。5分間応答（ping）がないメンバーは自動的に外れます。</div>`
       : `<div class="spinner"></div><div class="sub center">ホストが開始するのをお待ちください</div>`}`;
   document.getElementById("btnCopy").onclick = () => {
     navigator.clipboard.writeText(shareUrl).then(() => { const b = document.getElementById("btnCopy"); b.textContent = "コピーしました！"; setTimeout(() => b.textContent = "コピー", 1500); });
@@ -816,6 +861,7 @@ function renderTeamWaiting() {
   if (startBtn) startBtn.onclick = async () => { startBtn.disabled = true; await updateDoc(doc(db, "rooms", roomCode), { status: "setting" }); };
 }
 async function renderTeamSetting() {
+  const n = roomData.digits || DEFAULT_DIGITS;
   const mt = myTeamId();
   const team = roomData[mt];
   const isCaptain = team.members[0].uid === myUid;
@@ -824,7 +870,7 @@ async function renderTeamSetting() {
   const otherReady = (roomData.readyTeams || []).includes(otherTeamId);
   if (alreadySet) {
     const secret = await getTeamSecretCached(roomCode, mt);
-    app.innerHTML = `${ownerDeleteButtonHtml()}<h2>チームの合言葉を設定しました</h2><div class="glass-panel center"><div class="digit-boxes">${digitBoxesHtml(secret)}</div></div>
+    app.innerHTML = `${ownerDeleteButtonHtml()}<h2>チームの合言葉を設定しました</h2><div class="glass-panel center"><div class="digit-boxes">${digitBoxesHtml(secret, n)}</div></div>
       <div class="spinner"></div><div class="sub center">${otherReady ? "まもなく開始します..." : "相手チームの準備をお待ちください..."}</div>`;
     return;
   }
@@ -835,19 +881,20 @@ async function renderTeamSetting() {
   app.innerHTML = `
     ${ownerDeleteButtonHtml()}
     <h2>チームの合言葉を設定してください（キャプテン: あなた）</h2>
-    <div class="sub">重複のない4桁の数字を決めましょう。チームメイト全員に共有され、一緒に守ります。</div>
-    <div class="field"><input class="aero-input" id="inSecret" maxlength="4" inputmode="numeric" placeholder="4桁の数字（重複なし）" style="text-align:center;font-size:24px;letter-spacing:10px;"></div>
+    <div class="sub">重複のない${n}桁の数字を決めましょう。チームメイト全員に共有され、一緒に守ります。</div>
+    <div class="field"><input class="aero-input" id="inSecret" maxlength="${n}" inputmode="numeric" placeholder="${n}桁の数字（重複なし）" style="text-align:center;font-size:24px;letter-spacing:10px;"></div>
     <div id="secErr"></div><button class="aero-btn wide" id="btnSetSecret">決定</button>`;
   const input = document.getElementById("inSecret");
-  input.oninput = () => { input.value = input.value.replace(/[^0-9]/g, "").slice(0, 4); };
+  input.oninput = () => { input.value = input.value.replace(/[^0-9]/g, "").slice(0, n); };
   document.getElementById("btnSetSecret").onclick = async () => {
     const v = input.value, errBox = document.getElementById("secErr");
-    if (!isValidDigits(v)) { errBox.innerHTML = `<div class="error-msg">4桁の「重複しない」数字を入力してください</div>`; return; }
+    if (!isValidDigits(v, n)) { errBox.innerHTML = `<div class="error-msg">${n}桁の「重複しない」数字を入力してください</div>`; return; }
     document.getElementById("btnSetSecret").disabled = true;
     try { await teamSetSecret(roomCode, mt, v); } catch (e) { errBox.innerHTML = `<div class="error-msg">${escapeHtml(e.message)}</div>`; document.getElementById("btnSetSecret").disabled = false; }
   };
 }
 async function renderTeamGame() {
+  const n = roomData.digits || DEFAULT_DIGITS;
   const mt = myTeamId();
   const myTurn = roomData.turn === myUid;
   const myTeamTurn = roomData.turnTeam === mt;
@@ -864,22 +911,23 @@ async function renderTeamGame() {
     ${ownerDeleteButtonHtml()}
     <div class="team-columns">${teamColumnHtml(roomData.teamA, roomData.turn)}${teamColumnHtml(roomData.teamB, roomData.turn)}</div>
     ${badge}
-    <div class="glass-panel"><div class="field" style="margin-bottom:6px;"><label>チームの合言葉</label></div><div class="digit-boxes">${digitBoxesHtml(secret)}</div></div>
-    <div class="field"><label>予想する数字（4桁・重複なし）</label>
-      <div class="row"><input class="aero-input" id="inGuess" maxlength="4" inputmode="numeric" placeholder="1234" style="text-align:center;font-size:20px;letter-spacing:8px;" ${myTurn ? "" : "disabled"}>
+    <div class="glass-panel"><div class="field" style="margin-bottom:6px;"><label>チームの合言葉</label></div><div class="digit-boxes">${digitBoxesHtml(secret, n)}</div></div>
+    <div class="field"><label>予想する数字（${n}桁・重複なし）</label>
+      <div class="row"><input class="aero-input" id="inGuess" maxlength="${n}" inputmode="numeric" placeholder="${"1".repeat(n)}" style="text-align:center;font-size:20px;letter-spacing:8px;" ${myTurn ? "" : "disabled"}>
       <button class="aero-btn" id="btnGuess" ${myTurn ? "" : "disabled"}>予想する</button></div><div id="guessErr"></div></div>
     <h3 style="margin-top:18px;">対戦履歴</h3><div class="history">${historyHtml || `<div class="sub">まだ予想はありません</div>`}</div>`;
   const input = document.getElementById("inGuess");
-  input.oninput = () => { input.value = input.value.replace(/[^0-9]/g, "").slice(0, 4); };
+  input.oninput = () => { input.value = input.value.replace(/[^0-9]/g, "").slice(0, n); };
   const btn = document.getElementById("btnGuess");
   if (btn) btn.onclick = async () => {
     const v = input.value, errBox = document.getElementById("guessErr");
-    if (!isValidDigits(v)) { errBox.innerHTML = `<div class="error-msg">4桁の「重複しない」数字を入力してください</div>`; return; }
+    if (!isValidDigits(v, n)) { errBox.innerHTML = `<div class="error-msg">${n}桁の「重複しない」数字を入力してください</div>`; return; }
     btn.disabled = true; input.disabled = true;
     try { await teamSubmitGuess(roomCode, v); input.value = ""; } catch (e) { errBox.innerHTML = `<div class="error-msg">${escapeHtml(e.message)}</div>`; btn.disabled = false; input.disabled = false; }
   };
 }
 async function renderTeamResult() {
+  const n = roomData.digits || DEFAULT_DIGITS;
   const mt = myTeamId(); const iWonTeam = roomData.winnerTeam === mt;
   const winnerName = roomData.winnerTeam ? roomData[roomData.winnerTeam].name : "?";
   const forfeitMsg = roomData.finishReason === "opponent_left"
@@ -898,8 +946,8 @@ async function renderTeamResult() {
     const [sA, sB] = await Promise.all([getDoc(doc(db, "rooms", roomCode, "teamSecrets", "teamA")), getDoc(doc(db, "rooms", roomCode, "teamSecrets", "teamB"))]);
     const area = document.getElementById("revealArea");
     if (area) area.innerHTML = `
-      <div><b>${escapeHtml(roomData.teamA.name)}</b><div class="digit-boxes">${digitBoxesHtml(sA.data()?.secret)}</div></div>
-      <div><b>${escapeHtml(roomData.teamB.name)}</b><div class="digit-boxes">${digitBoxesHtml(sB.data()?.secret)}</div></div>`;
+      <div><b>${escapeHtml(roomData.teamA.name)}</b><div class="digit-boxes">${digitBoxesHtml(sA.data()?.secret, n)}</div></div>
+      <div><b>${escapeHtml(roomData.teamB.name)}</b><div class="digit-boxes">${digitBoxesHtml(sB.data()?.secret, n)}</div></div>`;
   } catch (e) { const area = document.getElementById("revealArea"); if (area) area.innerHTML = `<div class="sub">合言葉の取得に失敗しました</div>`; }
 }
 
@@ -911,14 +959,15 @@ let myActiveMatchId = null, unsubMatchGuesses = null, matchGuesses = [];
 let tHostLock = false; const advancingLocks = new Set();
 let matchSecretCache = { matchId: null, uid: null, val: null };
 
-async function trnCreate(name, size) {
+async function trnCreate(name, size, digits) {
   myName = name || "ホスト";
+  digits = parseInt(digits, 10) || DEFAULT_DIGITS;
   for (let i = 0; i < 8; i++) {
     const code = genCode();
     const ref = doc(db, "tournaments", code);
     const snap = await getDoc(ref);
     if (!snap.exists()) {
-      await setDoc(ref, { hostUid: myUid, size, participants: [{ uid: myUid, name: myName }], status: "lobby", champion: null, presence: {}, createdAt: serverTimestamp() });
+      await setDoc(ref, { hostUid: myUid, size, digits, participants: [{ uid: myUid, name: myName }], status: "lobby", champion: null, presence: {}, expireAt: new Date(Date.now() + EXPIRE_BUFFER_MS), createdAt: serverTimestamp() });
       tCode = code; history.replaceState(null, "", "?trn=" + code); trnSubscribe(code); sendHeartbeat(); return;
     }
   }
@@ -930,6 +979,10 @@ async function trnJoin(code, name) {
   const ref = doc(db, "tournaments", code); const snap = await getDoc(ref);
   if (!snap.exists()) throw new Error("そのコードは見つかりません");
   const data = snap.data();
+  if (isExpired(data)) {
+    await deleteTournamentCascade(code).catch(() => {});
+    throw new Error("このトーナメントは誰も接続していなかったため自動的に削除されました。新しく作成してください。");
+  }
   if ((data.participants || []).some(p => p.uid === myUid)) { tCode = code; history.replaceState(null, "", "?trn=" + code); trnSubscribe(code); sendHeartbeat(); return; }
   if (data.status !== "lobby") throw new Error("このトーナメントは既に開始されています");
   if ((data.participants || []).length >= data.size) throw new Error("トーナメントは満員です");
@@ -955,8 +1008,9 @@ async function trnStart() {
       player1Uid: m.player1?.uid || null, player1Name: m.player1?.name || null,
       player2Uid: m.player2?.uid || null, player2Name: m.player2?.name || null,
       status: (m.player1 && m.player2) ? "setting" : "pending",
-      readyUids: [], turn: null, winner: null, finishReason: null, presence: {},
-      nextMatchId: m.nextMatchId || null, nextSlot: m.nextSlot || null, createdAt: serverTimestamp()
+      readyUids: [], turn: null, winner: null, finishReason: null, digits: tData.digits || DEFAULT_DIGITS,
+      nextMatchId: m.nextMatchId || null, nextSlot: m.nextSlot || null,
+      presence: {}, expireAt: new Date(Date.now() + EXPIRE_BUFFER_MS), createdAt: serverTimestamp()
     });
   }
   await batch.commit();
@@ -1020,9 +1074,11 @@ function trnSubscribeMatchGuesses(code, matchId) {
         const secretSnap = await getDoc(doc(db, "tournaments", code, "matches", matchId, "secrets", myUid));
         const secret = secretSnap.exists() ? secretSnap.data().secret : null;
         if (!secret) return;
-        const { hit, blow } = calcHitBlow(secret, g.guess);
+        const curMatch = tMatches.find(x => x.id === matchId);
+        const n = (curMatch && curMatch.digits) || (tData && tData.digits) || DEFAULT_DIGITS;
+        const { hit, blow } = calcHitBlow(secret, g.guess, n);
         await updateDoc(doc(db, "tournaments", code, "matches", matchId, "guesses", gid), { hit, blow, evaluatedAt: serverTimestamp() });
-        if (hit === DIGITS) await updateDoc(matchRef, { status: "finished", winner: g.guesserUid });
+        if (hit === n) await updateDoc(matchRef, { status: "finished", winner: g.guesserUid });
         else await updateDoc(matchRef, { turn: myUid });
       }
     });
@@ -1091,6 +1147,7 @@ function renderTrnLobby(errMsg) {
     <div class="field"><label>あなたの名前</label><input class="aero-input" id="inName" maxlength="12" placeholder="プレイヤー名"></div>
     <div class="glass-panel">
       <div class="field"><label>新規作成：参加人数</label><select class="aero-input" id="inSize"><option value="4">4人</option><option value="8">8人</option></select></div>
+      <div class="field"><label>桁数</label>${digitsSelectHtml("inDigits")}</div>
       <button class="aero-btn secondary wide" id="btnCreate">新しいトーナメントを作る</button>
     </div>
     <div class="glass-panel">
@@ -1101,7 +1158,8 @@ function renderTrnLobby(errMsg) {
   document.getElementById("btnCreate").onclick = async () => {
     const name = document.getElementById("inName").value.trim() || "ホスト";
     const size = parseInt(document.getElementById("inSize").value, 10);
-    try { await trnCreate(name, size); } catch (e) { renderTrnLobby(e.message); }
+    const digits = document.getElementById("inDigits").value;
+    try { await trnCreate(name, size, digits); } catch (e) { renderTrnLobby(e.message); }
   };
   document.getElementById("btnJoin").onclick = async () => {
     const name = document.getElementById("inName").value.trim() || "ゲスト";
@@ -1116,13 +1174,13 @@ function renderTrnGathering() {
   app.innerHTML = `
     ${ownerDeleteButtonHtml()}
     <h2>参加者を待っています...</h2>
-    <div class="glass-panel center"><div class="sub" style="margin-bottom:0;">このコードを共有してください（${tData.participants.length} / ${tData.size} 人）</div>
+    <div class="glass-panel center"><div class="sub" style="margin-bottom:0;">このコードを共有してください（${tData.participants.length} / ${tData.size} 人・${tData.digits}桁で対戦します）</div>
       <div class="code-display">${tCode}</div>
       <div class="copy-row"><input class="aero-input" id="shareUrl" readonly value="${escapeHtml(shareUrl)}"><button class="aero-btn" id="btnCopy">コピー</button></div></div>
     <div class="glass-panel"><div class="sub" style="margin-bottom:6px;">参加者一覧</div>
       ${tData.participants.map(p => `<div class="team-member">${escapeHtml(p.name)}${p.uid === tData.hostUid ? " (ホスト)" : ""} ${p.uid === myUid ? "" : presenceBadgeHtml(p.uid, "trn")}</div>`).join("")}</div>
     ${tData.hostUid === myUid
-      ? `<button class="aero-btn wide" id="btnStart" ${canStart ? "" : "disabled"}>抽選してトーナメント開始</button><div class="hint">${tData.size}人揃うと開始できます。5秒応答がない参加者は自動的に外れます。</div>`
+      ? `<button class="aero-btn wide" id="btnStart" ${canStart ? "" : "disabled"}>抽選してトーナメント開始</button><div class="hint">${tData.size}人揃うと開始できます。5分間応答（ping）がない参加者は自動的に外れます。</div>`
       : `<div class="spinner"></div><div class="sub center">ホストが開始するのをお待ちください</div>`}`;
   document.getElementById("btnCopy").onclick = () => {
     navigator.clipboard.writeText(shareUrl).then(() => { const b = document.getElementById("btnCopy"); b.textContent = "コピーしました！"; setTimeout(() => b.textContent = "コピー", 1500); });
@@ -1131,33 +1189,35 @@ function renderTrnGathering() {
   if (startBtn) startBtn.onclick = async () => { startBtn.disabled = true; try { await trnStart(); } catch (e) { renderTrnGathering(); alert(e.message); } };
 }
 async function renderTrnSetting(m) {
+  const n = m.digits || DEFAULT_DIGITS;
   const already = (m.readyUids || []).includes(myUid);
   const oppUid = m.player1Uid === myUid ? m.player2Uid : m.player1Uid;
   const oppName = m.player1Uid === myUid ? m.player2Name : m.player1Name;
   let bodyHtml;
   if (already) {
     const secret = await getMatchSecretCached(m.id);
-    bodyHtml = `<h2>合言葉を設定しました</h2><div class="glass-panel center"><div class="digit-boxes">${digitBoxesHtml(secret)}</div></div>
+    bodyHtml = `<h2>合言葉を設定しました</h2><div class="glass-panel center"><div class="digit-boxes">${digitBoxesHtml(secret, n)}</div></div>
       <div class="spinner"></div><div class="sub center">${escapeHtml(oppName || "相手")} の準備をお待ちください... ${presenceBadgeHtml(oppUid, "match")}</div>`;
   } else {
     bodyHtml = `<h2>${escapeHtml(oppName || "相手")} 戦：合言葉を設定してください</h2>
-      <div class="sub">重複のない4桁の数字を決めましょう。</div>
-      <div class="field"><input class="aero-input" id="inSecret" maxlength="4" inputmode="numeric" placeholder="4桁の数字（重複なし）" style="text-align:center;font-size:24px;letter-spacing:10px;"></div>
+      <div class="sub">重複のない${n}桁の数字を決めましょう。</div>
+      <div class="field"><input class="aero-input" id="inSecret" maxlength="${n}" inputmode="numeric" placeholder="${n}桁の数字（重複なし）" style="text-align:center;font-size:24px;letter-spacing:10px;"></div>
       <div id="secErr"></div><button class="aero-btn wide" id="btnSetSecret">決定</button>`;
   }
   app.innerHTML = `${ownerDeleteButtonHtml()}<div class="glass-panel" style="margin-bottom:12px;"><div class="sub" style="margin:0;">ラウンド${m.round} の対戦</div></div>` + bodyHtml + `<h3 style="margin-top:18px;">トーナメント表</h3>${bracketHtml()}`;
   const input = document.getElementById("inSecret");
   if (input) {
-    input.oninput = () => { input.value = input.value.replace(/[^0-9]/g, "").slice(0, 4); };
+    input.oninput = () => { input.value = input.value.replace(/[^0-9]/g, "").slice(0, n); };
     document.getElementById("btnSetSecret").onclick = async () => {
       const v = input.value, errBox = document.getElementById("secErr");
-      if (!isValidDigits(v)) { errBox.innerHTML = `<div class="error-msg">4桁の「重複しない」数字を入力してください</div>`; return; }
+      if (!isValidDigits(v, n)) { errBox.innerHTML = `<div class="error-msg">${n}桁の「重複しない」数字を入力してください</div>`; return; }
       document.getElementById("btnSetSecret").disabled = true;
       try { await trnSetSecret(tCode, m.id, v); } catch (e) { errBox.innerHTML = `<div class="error-msg">${escapeHtml(e.message)}</div>`; document.getElementById("btnSetSecret").disabled = false; }
     };
   }
 }
 async function renderTrnGame(m) {
+  const n = m.digits || DEFAULT_DIGITS;
   const myTurn = m.turn === myUid;
   const oppName = m.player1Uid === myUid ? m.player2Name : m.player1Name;
   const secret = await getMatchSecretCached(m.id);
@@ -1167,18 +1227,18 @@ async function renderTrnGame(m) {
     <div class="glass-panel" style="margin-bottom:12px;"><div class="sub" style="margin:0;">ラウンド${m.round} の対戦</div></div>
     <div class="players"><div class="player-chip">${escapeHtml(m.player1Name)} ${m.player1Uid === myUid ? "(あなた)" : presenceBadgeHtml(m.player1Uid, "match")}</div><div class="player-chip">${escapeHtml(m.player2Name)} ${m.player2Uid === myUid ? "(あなた)" : presenceBadgeHtml(m.player2Uid, "match")}</div></div>
     <div class="turn-badge ${myTurn ? "mine" : "theirs"}">${myTurn ? "あなたの番です" : `${escapeHtml(oppName || "相手")} の番です`}</div>
-    <div class="glass-panel"><div class="field" style="margin-bottom:6px;"><label>あなたの合言葉</label></div><div class="digit-boxes">${digitBoxesHtml(secret)}</div></div>
-    <div class="field"><label>予想する数字（4桁・重複なし）</label>
-      <div class="row"><input class="aero-input" id="inGuess" maxlength="4" inputmode="numeric" placeholder="1234" style="text-align:center;font-size:20px;letter-spacing:8px;" ${myTurn ? "" : "disabled"}>
+    <div class="glass-panel"><div class="field" style="margin-bottom:6px;"><label>あなたの合言葉</label></div><div class="digit-boxes">${digitBoxesHtml(secret, n)}</div></div>
+    <div class="field"><label>予想する数字（${n}桁・重複なし）</label>
+      <div class="row"><input class="aero-input" id="inGuess" maxlength="${n}" inputmode="numeric" placeholder="${"1".repeat(n)}" style="text-align:center;font-size:20px;letter-spacing:8px;" ${myTurn ? "" : "disabled"}>
       <button class="aero-btn" id="btnGuess" ${myTurn ? "" : "disabled"}>予想する</button></div><div id="guessErr"></div></div>
     <h3 style="margin-top:18px;">対戦履歴</h3><div class="history">${historyHtml || `<div class="sub">まだ予想はありません</div>`}</div>
     <h3 style="margin-top:18px;">トーナメント表</h3>${bracketHtml()}`;
   const input = document.getElementById("inGuess");
-  input.oninput = () => { input.value = input.value.replace(/[^0-9]/g, "").slice(0, 4); };
+  input.oninput = () => { input.value = input.value.replace(/[^0-9]/g, "").slice(0, n); };
   const btn = document.getElementById("btnGuess");
   if (btn) btn.onclick = async () => {
     const v = input.value, errBox = document.getElementById("guessErr");
-    if (!isValidDigits(v)) { errBox.innerHTML = `<div class="error-msg">4桁の「重複しない」数字を入力してください</div>`; return; }
+    if (!isValidDigits(v, n)) { errBox.innerHTML = `<div class="error-msg">${n}桁の「重複しない」数字を入力してください</div>`; return; }
     btn.disabled = true; input.disabled = true;
     try { await trnSubmitGuess(tCode, m.id, m, v); input.value = ""; } catch (e) { errBox.innerHTML = `<div class="error-msg">${escapeHtml(e.message)}</div>`; btn.disabled = false; input.disabled = false; }
   };
